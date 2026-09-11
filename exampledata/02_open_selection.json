@@ -1,0 +1,18 @@
+{
+    "Event": {
+        "Markets": [
+            {
+                "ID": "H2H",
+                "Selections": [
+                    {
+                        "ID": "home",
+                        "BettingStatus": {
+                            "Value": "BettingOpen"
+                        }
+                    }
+                ]
+            }
+        ],
+        "ID": "testEvent"
+    } 
+}

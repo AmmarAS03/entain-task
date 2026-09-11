@@ -1,0 +1,10 @@
+# Personal working notes/tooling — not part of the submission
+CLAUDE.md
+.claude/
+.learn-visualise/
+
+# Build artifacts
+core/cmd/core/core
+
+# macOS
+.DS_Store

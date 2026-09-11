@@ -1,0 +1,43 @@
+syntax = "proto3";
+
+package core;
+
+import  "model/event.proto";
+
+option go_package = "git.neds.sh/technology/pricekinetics/tools/codetest/core";
+
+message UpdateRequest {
+    model.Event Event = 1;
+}
+
+message UpdateResponse {
+    string Message = 1;
+}
+
+message GetSportEventRequest {
+    string EventID = 1;
+}
+
+message GetSportEventResponse {
+    SportEvent Event = 1;
+}
+
+message SportEvent {
+    string                  ID              = 1; 
+    string                  Name            = 2;
+    string                  StartTime       = 3;
+    string                  BettingStatus   = 4;
+    repeated model.Market   Markets         = 5; 
+    string                  SportTypeID     = 6;
+    string                  SportName       = 7;
+    string                  Region          = 8;
+    string                  League          = 9;
+    string                  Round           = 11;
+}
+
+service Service {
+    // Update updates an Event and runs the pipeline of transformations
+    rpc Update(UpdateRequest) returns (UpdateResponse) {}
+    // GetSportEvent retrieves a model.Event from the database and returns a core.SportEvent - this is a more UserConsumable representation of the model that is specific to sport events 
+    rpc GetSportEvent(GetSportEventRequest) returns (GetSportEventResponse) {}
+}

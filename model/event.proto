@@ -1,0 +1,68 @@
+syntax = "proto3";
+
+package model;
+
+option go_package = "git.neds.sh/technology/pricekinetics/tools/codetest/model";
+
+enum BettingStatus {
+    BettingUnknown   = 0;
+    BettingOpen      = 1;
+    BettingSuspended = 2;
+    BettingClosed    = 3;
+}
+
+message OptionalBettingStatus {
+    BettingStatus Value   = 1;
+    bool          Deleted = 2;
+}
+
+// Event models a betting match/race
+message Event {
+    string                  ID              = 1; 
+    OptionalString          Name            = 2;
+    OptionalInt64           StartTime       = 3;
+    OptionalBettingStatus   BettingStatus   = 4;
+    repeated Market         Markets         = 5; 
+    OptionalString          EventTypeID     = 6; 
+    SportEvent              SportData       = 7;
+}
+
+// SportEvent models event details that are specific to sports
+message SportEvent {
+    OptionalString Name     = 1; 
+    OptionalString Region   = 2; 
+    OptionalString League   = 3; 
+    OptionalString Round    = 4; 
+}
+
+// Market models a market of betting options e.g Head to Head or Totals
+message Market {
+    string                  ID            = 1;
+    OptionalString          Name          = 2;
+    OptionalInt64           StartTime     = 3;
+    OptionalBettingStatus   BettingStatus = 4;
+    repeated Selection      Selections    = 5;
+}
+
+// Selection models a betting options e.g Home Team or Over
+message Selection {
+    string                  ID              = 1;
+    OptionalString          Name            = 2;
+    OptionalBettingStatus   BettingStatus   = 3;
+    OptionalDouble          Price           = 4;
+}
+
+message OptionalString {
+    string Value   = 1;
+    bool   Deleted = 2;
+}
+
+message OptionalDouble {
+    double Value   = 1;
+    bool   Deleted = 3;
+}
+
+message OptionalInt64 {
+    int64 Value   = 1;
+    bool  Deleted = 2;
+}

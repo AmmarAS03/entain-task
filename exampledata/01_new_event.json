@@ -1,0 +1,71 @@
+{
+    "Event": {
+        "Markets": [
+            {
+                "ID": "H2H",
+                "Name": {
+                    "Value": "Head to Head"
+                },
+                "StartTime": {
+                    "Value": 1758142685635000000
+                },
+                "BettingStatus": {
+                    "Value": "BettingOpen"
+                },
+                "Selections": [
+                    {
+                        "ID": "home",
+                        "Name": {
+                            "Value": "Syndey Roosters"
+                        },
+                        "BettingStatus": {
+                            "Value": "BettingSuspended"
+                        },
+                        "Price": {
+                            "Value": 1.01
+                        }
+                    },
+                    {
+                        "ID": "away",
+                        "Name": {
+                            "Value": "Melbourne Storm"
+                        },
+                        "BettingStatus": {
+                            "Value": "BettingOpen"
+                        },
+                        "Price": {
+                            "Value": 10.00
+                        }
+                    }
+                ]
+            }
+        ],
+        "ID": "testEvent",
+        "Name": {
+            "Value": "Sydney Roosters vs Melbourne Storm"
+        },
+        "StartTime": {
+            "Value": 1758142685635000000
+        },
+        "BettingStatus": {
+            "Value": "BettingOpen"
+        },
+        "EventTypeID": {
+            "Value": "rugby_league"
+        },
+        "SportData": {
+            "Name": {
+                "Value": "Rugby League"
+            },
+            "Region": {
+                "Value": "Australia"
+            },
+            "League": {
+                "Value": "NRL"
+            },
+            "Round": {
+                "Value": "1"
+            }
+        }
+    }
+}
