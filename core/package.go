@@ -21,4 +21,6 @@ func (to *SportEvent) ConvertFromModel(model *model.Event) {
 	to.SportName = model.GetSportData().GetName().GetValue()
 	to.Round = model.GetSportData().GetRound().GetValue()
 	to.Region = model.GetSportData().GetRegion().GetValue()
+	// Unset Display defaults to false (hidden).
+	to.Display = model.GetDisplay().GetValue()
 }

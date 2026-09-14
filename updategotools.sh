@@ -5,6 +5,7 @@ tools=(
 	golang.org/x/tools/cmd/goimports@latest
 	github.com/mikefarah/yq/v4@latest
 	google.golang.org/protobuf/cmd/protoc-gen-go
+	google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 )
 
 # Code Quality
