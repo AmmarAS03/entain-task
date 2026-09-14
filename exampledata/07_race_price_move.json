@@ -1,0 +1,13 @@
+{
+    "Event": {
+        "ID": "testRace",
+        "Markets": [
+            {
+                "ID": "WIN",
+                "Selections": [
+                    { "ID": "1", "Price": { "Value": 2.10 } }
+                ]
+            }
+        ]
+    }
+}

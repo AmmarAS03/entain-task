@@ -1,0 +1,71 @@
+{
+    "Event": {
+        "ID": "testRace",
+        "Name": { "Value": "Randwick Race 5" },
+        "StartTime": { "Value": 1758244443000000000 },
+        "BettingStatus": { "Value": "BettingOpen" },
+        "EventTypeID": { "Value": "horse_racing" },
+        "Display": { "Value": true },
+        "RacingData": {
+            "Region": { "Value": "Australia" },
+            "TrackName": { "Value": "Randwick" },
+            "RaceNumber": { "Value": 5 },
+            "DistanceMetres": { "Value": 1600 },
+            "TrackCondition": { "Value": "Good 4" },
+            "Weather": { "Value": "Fine" },
+            "RaceClass": { "Value": "Group 1" },
+            "RaceStatus": { "Value": "RaceScheduled" },
+            "Runners": [
+                {
+                    "ID": "1",
+                    "Number": { "Value": 1 },
+                    "Name": { "Value": "Winx" },
+                    "Barrier": { "Value": 4 },
+                    "Weight": { "Value": 58.5 },
+                    "Jockey": { "Value": "H Bowman" },
+                    "Trainer": { "Value": "C Waller" }
+                },
+                {
+                    "ID": "2",
+                    "Number": { "Value": 2 },
+                    "Name": { "Value": "Black Caviar" },
+                    "Barrier": { "Value": 7 },
+                    "Weight": { "Value": 57.0 },
+                    "Jockey": { "Value": "L Nolen" },
+                    "Trainer": { "Value": "P Moody" }
+                },
+                {
+                    "ID": "3",
+                    "Number": { "Value": 3 },
+                    "Name": { "Value": "Phar Lap" },
+                    "Barrier": { "Value": 1 },
+                    "Weight": { "Value": 59.0 },
+                    "Jockey": { "Value": "J Pike" },
+                    "Trainer": { "Value": "H Telford" }
+                }
+            ]
+        },
+        "Markets": [
+            {
+                "ID": "WIN",
+                "Name": { "Value": "Win" },
+                "BettingStatus": { "Value": "BettingOpen" },
+                "Selections": [
+                    { "ID": "1", "Name": { "Value": "Winx" }, "Price": { "Value": 2.40 } },
+                    { "ID": "2", "Name": { "Value": "Black Caviar" }, "Price": { "Value": 3.10 } },
+                    { "ID": "3", "Name": { "Value": "Phar Lap" }, "Price": { "Value": 8.00 } }
+                ]
+            },
+            {
+                "ID": "PLACE",
+                "Name": { "Value": "Place" },
+                "BettingStatus": { "Value": "BettingOpen" },
+                "Selections": [
+                    { "ID": "1", "Name": { "Value": "Winx" }, "Price": { "Value": 1.30 } },
+                    { "ID": "2", "Name": { "Value": "Black Caviar" }, "Price": { "Value": 1.55 } },
+                    { "ID": "3", "Name": { "Value": "Phar Lap" }, "Price": { "Value": 2.20 } }
+                ]
+            }
+        ]
+    }
+}

@@ -16,6 +16,22 @@ message OptionalBettingStatus {
     bool          Deleted = 2;
 }
 
+// RaceStatus tracks the lifecycle of the race itself, which is separate from
+// whether betting is open on it.
+enum RaceStatus {
+    RaceUnknown   = 0;
+    RaceScheduled = 1;
+    RaceRunning   = 2;
+    RaceInterim   = 3;
+    RaceFinal     = 4;
+    RaceAbandoned = 5;
+}
+
+message OptionalRaceStatus {
+    RaceStatus Value   = 1;
+    bool       Deleted = 2;
+}
+
 // Event models a betting match/race
 message Event {
     string                  ID              = 1; 
@@ -27,6 +43,7 @@ message Event {
     SportEvent              SportData       = 7;
     // Whether the Event should be displayed. Unset is treated as hidden.
     OptionalBool            Display         = 8;
+    RacingEvent             RacingData      = 9;
 }
 
 // SportEvent models event details that are specific to sports
@@ -35,6 +52,39 @@ message SportEvent {
     OptionalString Region   = 2; 
     OptionalString League   = 3; 
     OptionalString Round    = 4; 
+}
+
+// RacingEvent models event details specific to racing codes (horse, greyhound,
+// harness). The racing code itself lives in Event.EventTypeID, matching how
+// sport events carry their type.
+message RacingEvent {
+    OptionalString      Name            = 1;  // display name of the racing code
+    OptionalString      Region          = 2;
+    OptionalString      TrackName       = 3;
+    OptionalInt64       RaceNumber      = 4;  // race N on the day's card
+    OptionalInt64       DistanceMetres  = 5;
+    OptionalString      TrackCondition  = 6;  // e.g. Good 4, Soft 6, Heavy 10
+    OptionalString      Weather         = 7;
+    OptionalString      RaceClass       = 8;  // e.g. Group 1, Maiden, Grade 5
+    OptionalRaceStatus  RaceStatus      = 9;
+    OptionalInt64       FieldSize       = 10; // derived, see racingtransform
+    repeated Runner     Runners         = 11;
+}
+
+// Runner models a single competitor in a race. Runners are held once per Event
+// rather than per Market, because the same runner is bet on across every market
+// on the race. Markets reference a Runner by using its ID as the Selection ID.
+message Runner {
+    string          ID              = 1;
+    OptionalInt64   Number          = 2;  // saddlecloth number, or box for greyhounds
+    OptionalString  Name            = 3;
+    OptionalInt64   Barrier         = 4;
+    OptionalDouble  Weight          = 5;  // carried weight in kg
+    OptionalString  Jockey          = 6;  // driver for harness, unset for greyhounds
+    OptionalString  Trainer         = 7;
+    OptionalBool    Scratched       = 8;
+    OptionalString  Silks           = 9;
+    OptionalInt64   FinishPosition  = 10;
 }
 
 // Market models a market of betting options e.g Head to Head or Totals

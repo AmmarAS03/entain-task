@@ -35,6 +35,31 @@ func MergeOptionalBettingStatus(ctx context.Context, left, right *model.Optional
 	return result
 }
 
+// MergeRaceStatus generates a merged value between two members of the enumeration RaceStatus
+func MergeRaceStatus(ctx context.Context, left, right model.RaceStatus) model.RaceStatus {
+	// For enumerated types, we simply return the right operand
+	return right
+}
+
+// MergeOptionalRaceStatus generates a new instance of the OptionalRaceStatus type, where two input values are merged. Values on the left
+// are overwritten with values from the right where they exist, recursively.
+func MergeOptionalRaceStatus(ctx context.Context, left, right *model.OptionalRaceStatus) *model.OptionalRaceStatus {
+	// Handle trivial cases
+	if right == nil {
+		return left
+	}
+	if left == nil {
+		return right
+	}
+
+	// Create the new target
+	result := &model.OptionalRaceStatus{}
+
+	result.Value = MergeRaceStatus(ctx, left.Value, right.Value)
+	result.Deleted = right.Deleted // Copy primitive value from right, as non-pointers.
+	return result
+}
+
 // MergeEvent generates a new instance of the Event type, where two input values are merged. Values on the left
 // are overwritten with values from the right where they exist, recursively.
 func MergeEvent(ctx context.Context, left, right *model.Event) *model.Event {
@@ -55,6 +80,7 @@ func MergeEvent(ctx context.Context, left, right *model.Event) *model.Event {
 	result.BettingStatus = MergeOptionalBettingStatus(ctx, left.BettingStatus, right.BettingStatus)
 	result.SportData = MergeSportEvent(ctx, left.SportData, right.SportData)
 	result.Display = MergeOptionalBool(ctx, left.Display, right.Display)
+	result.RacingData = MergeRacingEvent(ctx, left.RacingData, right.RacingData)
 
 	// Generate the difference for Markets with a slice of Market
 	mergedMarkets := MergeMarketSlice(ctx, left.Markets, right.Markets)
@@ -83,6 +109,66 @@ func MergeSportEvent(ctx context.Context, left, right *model.SportEvent) *model.
 	result.Region = MergeOptionalString(ctx, left.Region, right.Region)
 	result.League = MergeOptionalString(ctx, left.League, right.League)
 	result.Round = MergeOptionalString(ctx, left.Round, right.Round)
+	return result
+}
+
+// MergeRacingEvent generates a new instance of the RacingEvent type, where two input values are merged. Values on the left
+// are overwritten with values from the right where they exist, recursively.
+func MergeRacingEvent(ctx context.Context, left, right *model.RacingEvent) *model.RacingEvent {
+	// Handle trivial cases
+	if right == nil {
+		return left
+	}
+	if left == nil {
+		return right
+	}
+
+	// Create the new target
+	result := &model.RacingEvent{}
+
+	result.Name = MergeOptionalString(ctx, left.Name, right.Name)
+	result.Region = MergeOptionalString(ctx, left.Region, right.Region)
+	result.TrackName = MergeOptionalString(ctx, left.TrackName, right.TrackName)
+	result.RaceNumber = MergeOptionalInt64(ctx, left.RaceNumber, right.RaceNumber)
+	result.DistanceMetres = MergeOptionalInt64(ctx, left.DistanceMetres, right.DistanceMetres)
+	result.TrackCondition = MergeOptionalString(ctx, left.TrackCondition, right.TrackCondition)
+	result.Weather = MergeOptionalString(ctx, left.Weather, right.Weather)
+	result.RaceClass = MergeOptionalString(ctx, left.RaceClass, right.RaceClass)
+	result.RaceStatus = MergeOptionalRaceStatus(ctx, left.RaceStatus, right.RaceStatus)
+	result.FieldSize = MergeOptionalInt64(ctx, left.FieldSize, right.FieldSize)
+
+	// Generate the difference for Runners with a slice of Runner
+	mergedRunners := MergeRunnerSlice(ctx, left.Runners, right.Runners)
+	if len(mergedRunners) > 0 {
+		result.Runners = mergedRunners
+	}
+	return result
+}
+
+// MergeRunner generates a new instance of the Runner type, where two input values are merged. Values on the left
+// are overwritten with values from the right where they exist, recursively.
+func MergeRunner(ctx context.Context, left, right *model.Runner) *model.Runner {
+	// Handle trivial cases
+	if right == nil {
+		return left
+	}
+	if left == nil {
+		return right
+	}
+
+	// Create the new target
+	result := &model.Runner{}
+
+	result.ID = right.ID // Copy primitive value from right, as non-pointers.
+	result.Number = MergeOptionalInt64(ctx, left.Number, right.Number)
+	result.Name = MergeOptionalString(ctx, left.Name, right.Name)
+	result.Barrier = MergeOptionalInt64(ctx, left.Barrier, right.Barrier)
+	result.Weight = MergeOptionalDouble(ctx, left.Weight, right.Weight)
+	result.Jockey = MergeOptionalString(ctx, left.Jockey, right.Jockey)
+	result.Trainer = MergeOptionalString(ctx, left.Trainer, right.Trainer)
+	result.Scratched = MergeOptionalBool(ctx, left.Scratched, right.Scratched)
+	result.Silks = MergeOptionalString(ctx, left.Silks, right.Silks)
+	result.FinishPosition = MergeOptionalInt64(ctx, left.FinishPosition, right.FinishPosition)
 	return result
 }
 
