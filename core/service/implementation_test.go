@@ -62,3 +62,62 @@ func TestService_IntegrationTest_NewEvent(t *testing.T) {
 	assert.Equal(t, "Soccer", final.Event.SportName)
 	assert.Equal(t, "New Market", final.Event.Markets[0].Name.Value)
 }
+
+// TestService_IntegrationTest_Display covers Display end to end: unset, hidden,
+// unaffected by an unrelated update, then shown again.
+func TestService_IntegrationTest_Display(t *testing.T) {
+	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	assert.NoError(t, err)
+	defer repo.DeleteEventByID(context.Background(), "integration-test-display")
+
+	host := &service.Service{
+		Upstreams: &service.Upstreams{
+			MergerClient: merger.NewInlineMergerClient(),
+			Repo:         repo,
+			Transforms: []transforms.TransformClient{
+				sporttransform.NewSportTransformClient(),
+			},
+		},
+	}
+
+	update := func(event *model.Event) {
+		t.Helper()
+		_, uErr := host.Update(context.Background(), &core.UpdateRequest{Event: event})
+		assert.NoError(t, uErr)
+	}
+
+	displayOf := func() bool {
+		t.Helper()
+		got, gErr := host.GetSportEvent(context.Background(), &core.GetSportEventRequest{EventID: "integration-test-display"})
+		assert.NoError(t, gErr)
+		return got.Event.Display
+	}
+
+	// Unset defaults to hidden.
+	update(&model.Event{
+		ID:   "integration-test-display",
+		Name: &model.OptionalString{Value: "Test event"},
+	})
+	assert.False(t, displayOf())
+
+	// Shown.
+	update(&model.Event{
+		ID:      "integration-test-display",
+		Display: &model.OptionalBool{Value: true},
+	})
+	assert.True(t, displayOf())
+
+	// Unrelated update, Display unaffected.
+	update(&model.Event{
+		ID:      "integration-test-display",
+		Markets: []*model.Market{{ID: "mkt01", Name: &model.OptionalString{Value: "New Market"}}},
+	})
+	assert.True(t, displayOf())
+
+	// Hidden again.
+	update(&model.Event{
+		ID:      "integration-test-display",
+		Display: &model.OptionalBool{Value: false},
+	})
+	assert.False(t, displayOf())
+}

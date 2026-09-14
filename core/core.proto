@@ -23,6 +23,9 @@ message GetSportEventResponse {
 }
 
 message SportEvent {
+    // Unknown history, reserved rather than reused.
+    reserved 10;
+
     string                  ID              = 1; 
     string                  Name            = 2;
     string                  StartTime       = 3;
@@ -33,6 +36,8 @@ message SportEvent {
     string                  Region          = 8;
     string                  League          = 9;
     string                  Round           = 11;
+    // Whether the Event should be displayed. Unset defaults to false (hidden).
+    bool                    Display         = 12;
 }
 
 service Service {

@@ -1,0 +1,8 @@
+{
+    "Event": {
+        "ID": "testEvent",
+        "Display": {
+            "Value": false
+        }
+    }
+}
