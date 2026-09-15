@@ -86,6 +86,10 @@ message RacingRunner {
     int64   FinishPosition = 10;
     double  WinPrice    = 11;
     double  PlacePrice  = 12;
+    // BettingStatus of the runner's selection in the Win/Place market, so a
+    // scratched or suspended runner's price can be told apart from a live one.
+    string  WinBettingStatus   = 13;
+    string  PlaceBettingStatus = 14;
 }
 
 service Service {

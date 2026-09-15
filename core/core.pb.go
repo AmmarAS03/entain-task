@@ -910,8 +910,12 @@ type RacingRunner struct {
 	FinishPosition int64                  `protobuf:"varint,10,opt,name=FinishPosition,proto3" json:"FinishPosition,omitempty"`
 	WinPrice       float64                `protobuf:"fixed64,11,opt,name=WinPrice,proto3" json:"WinPrice,omitempty"`
 	PlacePrice     float64                `protobuf:"fixed64,12,opt,name=PlacePrice,proto3" json:"PlacePrice,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// BettingStatus of the runner's selection in the Win/Place market, so a
+	// scratched or suspended runner's price can be told apart from a live one.
+	WinBettingStatus   string `protobuf:"bytes,13,opt,name=WinBettingStatus,proto3" json:"WinBettingStatus,omitempty"`
+	PlaceBettingStatus string `protobuf:"bytes,14,opt,name=PlaceBettingStatus,proto3" json:"PlaceBettingStatus,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *RacingRunner) Reset() {
@@ -1023,6 +1027,20 @@ func (x *RacingRunner) GetPlacePrice() float64 {
 	return 0
 }
 
+func (x *RacingRunner) GetWinBettingStatus() string {
+	if x != nil {
+		return x.WinBettingStatus
+	}
+	return ""
+}
+
+func (x *RacingRunner) GetPlaceBettingStatus() string {
+	if x != nil {
+		return x.PlaceBettingStatus
+	}
+	return ""
+}
+
 func (x *RacingRunner) SetID(v string) {
 	x.ID = v
 }
@@ -1071,6 +1089,14 @@ func (x *RacingRunner) SetPlacePrice(v float64) {
 	x.PlacePrice = v
 }
 
+func (x *RacingRunner) SetWinBettingStatus(v string) {
+	x.WinBettingStatus = v
+}
+
+func (x *RacingRunner) SetPlaceBettingStatus(v string) {
+	x.PlaceBettingStatus = v
+}
+
 type RacingRunner_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -1086,6 +1112,10 @@ type RacingRunner_builder struct {
 	FinishPosition int64
 	WinPrice       float64
 	PlacePrice     float64
+	// BettingStatus of the runner's selection in the Win/Place market, so a
+	// scratched or suspended runner's price can be told apart from a live one.
+	WinBettingStatus   string
+	PlaceBettingStatus string
 }
 
 func (b0 RacingRunner_builder) Build() *RacingRunner {
@@ -1104,6 +1134,8 @@ func (b0 RacingRunner_builder) Build() *RacingRunner {
 	x.FinishPosition = b.FinishPosition
 	x.WinPrice = b.WinPrice
 	x.PlacePrice = b.PlacePrice
+	x.WinBettingStatus = b.WinBettingStatus
+	x.PlaceBettingStatus = b.PlaceBettingStatus
 	return m0
 }
 
@@ -1166,7 +1198,7 @@ const file_core_proto_rawDesc = "" +
 	"\tFieldSize\x18\x0f \x01(\x03R\tFieldSize\x12,\n" +
 	"\aRunners\x18\x10 \x03(\v2\x12.core.RacingRunnerR\aRunners\x12\x18\n" +
 	"\aDisplay\x18\x11 \x01(\bR\aDisplay\x12'\n" +
-	"\aMarkets\x18\x12 \x03(\v2\r.model.MarketR\aMarkets\"\xc6\x02\n" +
+	"\aMarkets\x18\x12 \x03(\v2\r.model.MarketR\aMarkets\"\xa2\x03\n" +
 	"\fRacingRunner\x12\x0e\n" +
 	"\x02ID\x18\x01 \x01(\tR\x02ID\x12\x16\n" +
 	"\x06Number\x18\x02 \x01(\x03R\x06Number\x12\x12\n" +
@@ -1182,7 +1214,9 @@ const file_core_proto_rawDesc = "" +
 	"\bWinPrice\x18\v \x01(\x01R\bWinPrice\x12\x1e\n" +
 	"\n" +
 	"PlacePrice\x18\f \x01(\x01R\n" +
-	"PlacePrice2\xdb\x01\n" +
+	"PlacePrice\x12*\n" +
+	"\x10WinBettingStatus\x18\r \x01(\tR\x10WinBettingStatus\x12.\n" +
+	"\x12PlaceBettingStatus\x18\x0e \x01(\tR\x12PlaceBettingStatus2\xdb\x01\n" +
 	"\aService\x125\n" +
 	"\x06Update\x12\x13.core.UpdateRequest\x1a\x14.core.UpdateResponse\"\x00\x12J\n" +
 	"\rGetSportEvent\x12\x1a.core.GetSportEventRequest\x1a\x1b.core.GetSportEventResponse\"\x00\x12M\n" +

@@ -2,6 +2,7 @@
 package core
 
 import (
+	"sort"
 	"time"
 
 	"git.neds.sh/technology/pricekinetics/tools/codetest/model"
@@ -64,39 +65,55 @@ func (to *RacingEvent) ConvertFromModel(event *model.Event) {
 	to.TrackCondition = racing.GetTrackCondition().GetValue()
 	to.Weather = racing.GetWeather().GetValue()
 	to.RaceClass = racing.GetRaceClass().GetValue()
-	to.RaceStatus = racing.GetRaceStatus().GetValue().String()
+	// Unset RaceStatus stays empty, matching how every other racing field on
+	// this response behaves for a non-racing event.
+	if raceStatus := racing.GetRaceStatus(); raceStatus != nil {
+		to.RaceStatus = raceStatus.GetValue().String()
+	}
 	to.FieldSize = racing.GetFieldSize().GetValue()
 
-	winPrices, placePrices := runnerPrices(event.GetMarkets())
+	winSelections, placeSelections := runnerSelections(event.GetMarkets())
 
 	runners := racing.GetRunners()
 	to.Runners = make([]*RacingRunner, 0, len(runners))
 	for _, runner := range runners {
+		win := winSelections[runner.GetID()]
+		place := placeSelections[runner.GetID()]
 		to.Runners = append(to.Runners, &RacingRunner{
-			ID:             runner.GetID(),
-			Number:         runner.GetNumber().GetValue(),
-			Name:           runner.GetName().GetValue(),
-			Barrier:        runner.GetBarrier().GetValue(),
-			Weight:         runner.GetWeight().GetValue(),
-			Jockey:         runner.GetJockey().GetValue(),
-			Trainer:        runner.GetTrainer().GetValue(),
-			Scratched:      runner.GetScratched().GetValue(),
-			Silks:          runner.GetSilks().GetValue(),
-			FinishPosition: runner.GetFinishPosition().GetValue(),
-			WinPrice:       winPrices[runner.GetID()],
-			PlacePrice:     placePrices[runner.GetID()],
+			ID:                 runner.GetID(),
+			Number:             runner.GetNumber().GetValue(),
+			Name:               runner.GetName().GetValue(),
+			Barrier:            runner.GetBarrier().GetValue(),
+			Weight:             runner.GetWeight().GetValue(),
+			Jockey:             runner.GetJockey().GetValue(),
+			Trainer:            runner.GetTrainer().GetValue(),
+			Scratched:          runner.GetScratched().GetValue(),
+			Silks:              runner.GetSilks().GetValue(),
+			FinishPosition:     runner.GetFinishPosition().GetValue(),
+			WinPrice:           win.GetPrice().GetValue(),
+			WinBettingStatus:   win.GetBettingStatus().GetValue().String(),
+			PlacePrice:         place.GetPrice().GetValue(),
+			PlaceBettingStatus: place.GetBettingStatus().GetValue().String(),
 		})
 	}
+
+	// Runners render in program order (saddlecloth/box number), not the
+	// arbitrary storage order the repository and merger use internally.
+	sort.Slice(to.Runners, func(i, j int) bool {
+		return to.Runners[i].Number < to.Runners[j].Number
+	})
 }
 
-// runnerPrices indexes Win and Place prices by Selection ID in a single pass
-// over the markets. Selection IDs are runner IDs for racing events.
-func runnerPrices(markets []*model.Market) (win, place map[string]float64) {
-	win = map[string]float64{}
-	place = map[string]float64{}
+// runnerSelections indexes the Win and Place selections by Selection ID in a
+// single pass over the markets, so ConvertFromModel can join each runner to
+// its price and betting status without walking the markets again. Selection
+// IDs are runner IDs for racing events.
+func runnerSelections(markets []*model.Market) (win, place map[string]*model.Selection) {
+	win = map[string]*model.Selection{}
+	place = map[string]*model.Selection{}
 
 	for _, market := range markets {
-		var target map[string]float64
+		var target map[string]*model.Selection
 		switch market.GetID() {
 		case WinMarketID:
 			target = win
@@ -107,7 +124,7 @@ func runnerPrices(markets []*model.Market) (win, place map[string]float64) {
 		}
 
 		for _, selection := range market.GetSelections() {
-			target[selection.GetID()] = selection.GetPrice().GetValue()
+			target[selection.GetID()] = selection
 		}
 	}
 
