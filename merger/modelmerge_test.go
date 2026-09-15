@@ -60,6 +60,7 @@ func populatedMarket(id string) *model.Market {
 		StartTime:     &model.OptionalInt64{Value: 1758244443000000000, Deleted: true},
 		BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen, Deleted: true},
 		Selections:    []*model.Selection{populatedSelection("sel-1")},
+		ClosedAt:      &model.OptionalInt64{Value: 1758244443000000000, Deleted: true},
 	}
 }
 

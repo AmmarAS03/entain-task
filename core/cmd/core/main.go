@@ -12,6 +12,7 @@ import (
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/repository"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/service"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms"
+	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/marketclosetransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/racingtransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/sporttransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/merger"
@@ -49,6 +50,7 @@ func main() {
 			Transforms: []transforms.TransformClient{
 				sporttransform.NewSportTransformClient(),
 				racingtransform.NewRacingTransformClient(),
+				marketclosetransform.NewMarketCloseTransformClient(),
 			},
 		}
 

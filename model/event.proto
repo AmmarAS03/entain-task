@@ -94,6 +94,10 @@ message Market {
     OptionalInt64           StartTime     = 3;
     OptionalBettingStatus   BettingStatus = 4;
     repeated Selection      Selections    = 5;
+    // Epoch nanoseconds (UTC) of the first time this market's BettingStatus
+    // became BettingClosed. Set once by MarketCloseTransform and never
+    // recomputed, so a reopened and re-closed market keeps its first close.
+    OptionalInt64           ClosedAt      = 6;
 }
 
 // Selection models a betting options e.g Home Team or Over

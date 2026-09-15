@@ -8,6 +8,7 @@ import (
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/repository"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/service"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms"
+	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/marketclosetransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/racingtransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/sporttransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/merger"
@@ -25,6 +26,7 @@ func TestService_IntegrationTest_NewEvent(t *testing.T) {
 			Repo:         repo,
 			Transforms: []transforms.TransformClient{
 				sporttransform.NewSportTransformClient(),
+				marketclosetransform.NewMarketCloseTransformClient(),
 			},
 		},
 	}
@@ -77,6 +79,7 @@ func TestService_IntegrationTest_Display(t *testing.T) {
 			Repo:         repo,
 			Transforms: []transforms.TransformClient{
 				sporttransform.NewSportTransformClient(),
+				marketclosetransform.NewMarketCloseTransformClient(),
 			},
 		},
 	}
@@ -138,6 +141,7 @@ func TestService_IntegrationTest_RacingEvent(t *testing.T) {
 			Transforms: []transforms.TransformClient{
 				sporttransform.NewSportTransformClient(),
 				racingtransform.NewRacingTransformClient(),
+				marketclosetransform.NewMarketCloseTransformClient(),
 			},
 		},
 	}
@@ -251,6 +255,7 @@ func TestService_IntegrationTest_RacingAndSportViewsAreSeparate(t *testing.T) {
 			Transforms: []transforms.TransformClient{
 				sporttransform.NewSportTransformClient(),
 				racingtransform.NewRacingTransformClient(),
+				marketclosetransform.NewMarketCloseTransformClient(),
 			},
 		},
 	}
@@ -277,4 +282,82 @@ func TestService_IntegrationTest_RacingAndSportViewsAreSeparate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Randwick", racingView.Event.TrackName)
 	assert.Len(t, racingView.Event.Runners, 1)
+}
+
+// TestService_IntegrationTest_MarketClose covers ClosedAt end to end: stamped
+// on first close, unaffected by an unrelated update, and frozen across a
+// reopen and re-close.
+func TestService_IntegrationTest_MarketClose(t *testing.T) {
+	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	assert.NoError(t, err)
+	defer repo.DeleteEventByID(context.Background(), "integration-test-close")
+
+	host := &service.Service{
+		Upstreams: &service.Upstreams{
+			MergerClient: merger.NewInlineMergerClient(),
+			Repo:         repo,
+			Transforms: []transforms.TransformClient{
+				sporttransform.NewSportTransformClient(),
+				marketclosetransform.NewMarketCloseTransformClient(),
+			},
+		},
+	}
+
+	update := func(event *model.Event) {
+		t.Helper()
+		_, uErr := host.Update(context.Background(), &core.UpdateRequest{Event: event})
+		assert.NoError(t, uErr)
+	}
+
+	marketOf := func() *model.Market {
+		t.Helper()
+		got, gErr := host.GetSportEvent(context.Background(), &core.GetSportEventRequest{EventID: "integration-test-close"})
+		assert.NoError(t, gErr)
+		return got.Event.Markets[0]
+	}
+
+	update(&model.Event{
+		ID:   "integration-test-close",
+		Name: &model.OptionalString{Value: "Test event"},
+		Markets: []*model.Market{
+			{
+				ID:            "mkt01",
+				Name:          &model.OptionalString{Value: "Head to Head"},
+				BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen},
+				Selections: []*model.Selection{
+					{ID: "home", Price: &model.OptionalDouble{Value: 1.80}},
+					{ID: "away", Price: &model.OptionalDouble{Value: 2.10}},
+				},
+			},
+		},
+	})
+	assert.Nil(t, marketOf().ClosedAt, "an open market has no ClosedAt")
+
+	update(&model.Event{
+		ID:      "integration-test-close",
+		Markets: []*model.Market{{ID: "mkt01", BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingClosed}}},
+	})
+	closedMarket := marketOf()
+	firstClose := closedMarket.GetClosedAt().GetValue()
+	assert.NotZero(t, firstClose, "closing the market stamps ClosedAt")
+	assert.Equal(t, "Head to Head", closedMarket.GetName().GetValue(), "the close delta must not clobber Name")
+	assert.Len(t, closedMarket.GetSelections(), 2, "the close delta must not clobber Selections")
+
+	// An unrelated market update must not move the timestamp.
+	update(&model.Event{
+		ID:      "integration-test-close",
+		Markets: []*model.Market{{ID: "mkt01", Name: &model.OptionalString{Value: "Head to Head Renamed"}}},
+	})
+	assert.Equal(t, firstClose, marketOf().GetClosedAt().GetValue(), "ClosedAt must not move on an unrelated market update")
+
+	// Reopen then re-close: ClosedAt stays frozen at the first close.
+	update(&model.Event{
+		ID:      "integration-test-close",
+		Markets: []*model.Market{{ID: "mkt01", BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen}}},
+	})
+	update(&model.Event{
+		ID:      "integration-test-close",
+		Markets: []*model.Market{{ID: "mkt01", BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingClosed}}},
+	})
+	assert.Equal(t, firstClose, marketOf().GetClosedAt().GetValue(), "ClosedAt freezes at the first close")
 }
