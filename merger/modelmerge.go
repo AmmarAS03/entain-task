@@ -190,6 +190,7 @@ func MergeMarket(ctx context.Context, left, right *model.Market) *model.Market {
 	result.Name = MergeOptionalString(ctx, left.Name, right.Name)
 	result.StartTime = MergeOptionalInt64(ctx, left.StartTime, right.StartTime)
 	result.BettingStatus = MergeOptionalBettingStatus(ctx, left.BettingStatus, right.BettingStatus)
+	result.ClosedAt = MergeOptionalInt64(ctx, left.ClosedAt, right.ClosedAt)
 
 	// Generate the difference for Selections with a slice of Selection
 	mergedSelections := MergeSelectionSlice(ctx, left.Selections, right.Selections)
