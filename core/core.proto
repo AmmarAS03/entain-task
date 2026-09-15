@@ -40,9 +40,63 @@ message SportEvent {
     bool                    Display         = 12;
 }
 
+message GetRacingEventRequest {
+    string EventID = 1;
+}
+
+message GetRacingEventResponse {
+    RacingEvent Event = 1;
+}
+
+// RacingEvent is the consumer facing view of a race. Runners carry their own
+// prices, joined from the Win and Place markets, so a consumer can render a
+// race card without walking the market structure itself.
+message RacingEvent {
+    string                  ID              = 1;
+    string                  Name            = 2;
+    string                  StartTime       = 3;
+    string                  BettingStatus   = 4;
+    string                  RaceTypeID      = 5;
+    string                  RacingName      = 6;
+    string                  Region          = 7;
+    string                  TrackName       = 8;
+    int64                   RaceNumber      = 9;
+    int64                   DistanceMetres  = 10;
+    string                  TrackCondition  = 11;
+    string                  Weather         = 12;
+    string                  RaceClass       = 13;
+    string                  RaceStatus      = 14;
+    int64                   FieldSize       = 15;
+    repeated RacingRunner   Runners         = 16;
+    bool                    Display         = 17;
+    repeated model.Market   Markets         = 18;
+}
+
+// RacingRunner flattens a model.Runner together with its current prices.
+message RacingRunner {
+    string  ID          = 1;
+    int64   Number      = 2;
+    string  Name        = 3;
+    int64   Barrier     = 4;
+    double  Weight      = 5;
+    string  Jockey      = 6;
+    string  Trainer     = 7;
+    bool    Scratched   = 8;
+    string  Silks       = 9;
+    int64   FinishPosition = 10;
+    double  WinPrice    = 11;
+    double  PlacePrice  = 12;
+    // BettingStatus of the runner's selection in the Win/Place market, so a
+    // scratched or suspended runner's price can be told apart from a live one.
+    string  WinBettingStatus   = 13;
+    string  PlaceBettingStatus = 14;
+}
+
 service Service {
     // Update updates an Event and runs the pipeline of transformations
     rpc Update(UpdateRequest) returns (UpdateResponse) {}
     // GetSportEvent retrieves a model.Event from the database and returns a core.SportEvent - this is a more UserConsumable representation of the model that is specific to sport events 
     rpc GetSportEvent(GetSportEventRequest) returns (GetSportEventResponse) {}
+    // GetRacingEvent retrieves a model.Event from the database and returns a core.RacingEvent - a race card style view for consumers of racing events
+    rpc GetRacingEvent(GetRacingEventRequest) returns (GetRacingEventResponse) {}
 }

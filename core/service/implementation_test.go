@@ -8,6 +8,7 @@ import (
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/repository"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/service"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms"
+	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/racingtransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/core/transforms/sporttransform"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/merger"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/model"
@@ -120,4 +121,160 @@ func TestService_IntegrationTest_Display(t *testing.T) {
 		Display: &model.OptionalBool{Value: false},
 	})
 	assert.False(t, displayOf())
+}
+
+// TestService_IntegrationTest_RacingEvent covers the racing path end to end:
+// runners joined to their Win and Place prices, FieldSize derived by the
+// transform, and a late scratching moving it.
+func TestService_IntegrationTest_RacingEvent(t *testing.T) {
+	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	assert.NoError(t, err)
+	defer repo.DeleteEventByID(context.Background(), "integration-test-racing")
+
+	host := &service.Service{
+		Upstreams: &service.Upstreams{
+			MergerClient: merger.NewInlineMergerClient(),
+			Repo:         repo,
+			Transforms: []transforms.TransformClient{
+				sporttransform.NewSportTransformClient(),
+				racingtransform.NewRacingTransformClient(),
+			},
+		},
+	}
+
+	update := func(event *model.Event) {
+		t.Helper()
+		_, uErr := host.Update(context.Background(), &core.UpdateRequest{Event: event})
+		assert.NoError(t, uErr)
+	}
+
+	racingEvent := func() *core.RacingEvent {
+		t.Helper()
+		got, gErr := host.GetRacingEvent(context.Background(), &core.GetRacingEventRequest{EventID: "integration-test-racing"})
+		assert.NoError(t, gErr)
+		return got.GetEvent()
+	}
+
+	update(&model.Event{
+		ID:          "integration-test-racing",
+		Name:        &model.OptionalString{Value: "Randwick Race 5"},
+		StartTime:   &model.OptionalInt64{Value: 1758244443000000000},
+		EventTypeID: &model.OptionalString{Value: "horse_racing"},
+		RacingData: &model.RacingEvent{
+			TrackName:      &model.OptionalString{Value: "Randwick"},
+			RaceNumber:     &model.OptionalInt64{Value: 5},
+			DistanceMetres: &model.OptionalInt64{Value: 1600},
+			TrackCondition: &model.OptionalString{Value: "Good 4"},
+			RaceStatus:     &model.OptionalRaceStatus{Value: model.RaceStatus_RaceScheduled},
+			Runners: []*model.Runner{
+				{ID: "1", Number: &model.OptionalInt64{Value: 1}, Name: &model.OptionalString{Value: "Winx"}, Barrier: &model.OptionalInt64{Value: 4}, Jockey: &model.OptionalString{Value: "H Bowman"}},
+				{ID: "2", Number: &model.OptionalInt64{Value: 2}, Name: &model.OptionalString{Value: "Black Caviar"}, Barrier: &model.OptionalInt64{Value: 7}, Jockey: &model.OptionalString{Value: "L Nolen"}},
+				{ID: "3", Number: &model.OptionalInt64{Value: 3}, Name: &model.OptionalString{Value: "Phar Lap"}, Barrier: &model.OptionalInt64{Value: 1}, Jockey: &model.OptionalString{Value: "J Pike"}},
+			},
+		},
+		Markets: []*model.Market{
+			{
+				ID:   core.WinMarketID,
+				Name: &model.OptionalString{Value: "Win"},
+				Selections: []*model.Selection{
+					{ID: "1", Price: &model.OptionalDouble{Value: 2.40}},
+					{ID: "2", Price: &model.OptionalDouble{Value: 3.10}},
+					{ID: "3", Price: &model.OptionalDouble{Value: 8.00}},
+				},
+			},
+			{
+				ID:   core.PlaceMarketID,
+				Name: &model.OptionalString{Value: "Place"},
+				Selections: []*model.Selection{
+					{ID: "1", Price: &model.OptionalDouble{Value: 1.30}},
+					{ID: "2", Price: &model.OptionalDouble{Value: 1.55}},
+					{ID: "3", Price: &model.OptionalDouble{Value: 2.20}},
+				},
+			},
+		},
+	})
+
+	got := racingEvent()
+	assert.Equal(t, "Randwick", got.TrackName)
+	assert.EqualValues(t, 5, got.RaceNumber)
+	assert.EqualValues(t, 1600, got.DistanceMetres)
+	assert.Equal(t, "Good 4", got.TrackCondition)
+	assert.Equal(t, "RaceScheduled", got.RaceStatus)
+	assert.Equal(t, "horse_racing", got.RaceTypeID)
+	assert.Equal(t, "Horse Racing", got.RacingName, "racingtransform should derive the code name")
+	assert.EqualValues(t, 3, got.FieldSize, "three runners, none scratched")
+
+	assert.Len(t, got.Runners, 3)
+	assert.Equal(t, "Winx", got.Runners[0].Name)
+	assert.EqualValues(t, 4, got.Runners[0].Barrier)
+	assert.Equal(t, "H Bowman", got.Runners[0].Jockey)
+	assert.InDelta(t, 2.40, got.Runners[0].WinPrice, 0.001, "win price joined from the WIN market")
+	assert.InDelta(t, 1.30, got.Runners[0].PlacePrice, 0.001, "place price joined from the PLACE market")
+
+	// A price move touches only the market, never the runner metadata.
+	update(&model.Event{
+		ID: "integration-test-racing",
+		Markets: []*model.Market{
+			{ID: core.WinMarketID, Selections: []*model.Selection{{ID: "1", Price: &model.OptionalDouble{Value: 2.10}}}},
+		},
+	})
+	got = racingEvent()
+	assert.InDelta(t, 2.10, got.Runners[0].WinPrice, 0.001, "new win price")
+	assert.Equal(t, "Winx", got.Runners[0].Name, "runner metadata survives a price update")
+	assert.EqualValues(t, 3, got.FieldSize, "a price move must not change the field size")
+
+	// A scratching names one runner and moves the field size.
+	update(&model.Event{
+		ID: "integration-test-racing",
+		RacingData: &model.RacingEvent{
+			Runners: []*model.Runner{{ID: "2", Scratched: &model.OptionalBool{Value: true}}},
+		},
+	})
+	got = racingEvent()
+	assert.EqualValues(t, 2, got.FieldSize, "scratching one of three leaves two")
+	assert.Len(t, got.Runners, 3, "a scratched runner stays on the card")
+	assert.True(t, got.Runners[1].Scratched)
+	assert.Equal(t, "Black Caviar", got.Runners[1].Name, "scratching must not drop the name")
+}
+
+// A racing event fetched through the sport RPC must not report racing data as
+// though it were sport data, and vice versa.
+func TestService_IntegrationTest_RacingAndSportViewsAreSeparate(t *testing.T) {
+	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	assert.NoError(t, err)
+	defer repo.DeleteEventByID(context.Background(), "integration-test-separation")
+
+	host := &service.Service{
+		Upstreams: &service.Upstreams{
+			MergerClient: merger.NewInlineMergerClient(),
+			Repo:         repo,
+			Transforms: []transforms.TransformClient{
+				sporttransform.NewSportTransformClient(),
+				racingtransform.NewRacingTransformClient(),
+			},
+		},
+	}
+
+	_, err = host.Update(context.Background(), &core.UpdateRequest{Event: &model.Event{
+		ID:          "integration-test-separation",
+		Name:        &model.OptionalString{Value: "Randwick Race 5"},
+		EventTypeID: &model.OptionalString{Value: "horse_racing"},
+		RacingData: &model.RacingEvent{
+			TrackName: &model.OptionalString{Value: "Randwick"},
+			Runners:   []*model.Runner{{ID: "1", Name: &model.OptionalString{Value: "Winx"}}},
+		},
+	}})
+	assert.NoError(t, err)
+
+	sportView, err := host.GetSportEvent(context.Background(), &core.GetSportEventRequest{EventID: "integration-test-separation"})
+	assert.NoError(t, err)
+	assert.Equal(t, "Randwick Race 5", sportView.Event.Name, "shared event fields still resolve")
+	assert.Empty(t, sportView.Event.SportName, "racing data must not leak into the sport view")
+	assert.Empty(t, sportView.Event.League)
+	assert.Empty(t, sportView.Event.Round)
+
+	racingView, err := host.GetRacingEvent(context.Background(), &core.GetRacingEventRequest{EventID: "integration-test-separation"})
+	assert.NoError(t, err)
+	assert.Equal(t, "Randwick", racingView.Event.TrackName)
+	assert.Len(t, racingView.Event.Runners, 1)
 }

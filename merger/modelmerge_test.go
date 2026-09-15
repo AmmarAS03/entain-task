@@ -72,6 +72,37 @@ func populatedSportEvent() *model.SportEvent {
 	}
 }
 
+func populatedRunner(id string) *model.Runner {
+	return &model.Runner{
+		ID:             id,
+		Number:         &model.OptionalInt64{Value: 3, Deleted: true},
+		Name:           &model.OptionalString{Value: "Winx", Deleted: true},
+		Barrier:        &model.OptionalInt64{Value: 4, Deleted: true},
+		Weight:         &model.OptionalDouble{Value: 58.5, Deleted: true},
+		Jockey:         &model.OptionalString{Value: "H Bowman", Deleted: true},
+		Trainer:        &model.OptionalString{Value: "C Waller", Deleted: true},
+		Scratched:      &model.OptionalBool{Value: true, Deleted: true},
+		Silks:          &model.OptionalString{Value: "navy, white star", Deleted: true},
+		FinishPosition: &model.OptionalInt64{Value: 1, Deleted: true},
+	}
+}
+
+func populatedRacingEvent() *model.RacingEvent {
+	return &model.RacingEvent{
+		Name:           &model.OptionalString{Value: "Horse Racing", Deleted: true},
+		Region:         &model.OptionalString{Value: "AU", Deleted: true},
+		TrackName:      &model.OptionalString{Value: "Randwick", Deleted: true},
+		RaceNumber:     &model.OptionalInt64{Value: 5, Deleted: true},
+		DistanceMetres: &model.OptionalInt64{Value: 1600, Deleted: true},
+		TrackCondition: &model.OptionalString{Value: "Good 4", Deleted: true},
+		Weather:        &model.OptionalString{Value: "Fine", Deleted: true},
+		RaceClass:      &model.OptionalString{Value: "Group 1", Deleted: true},
+		RaceStatus:     &model.OptionalRaceStatus{Value: model.RaceStatus_RaceScheduled, Deleted: true},
+		FieldSize:      &model.OptionalInt64{Value: 12, Deleted: true},
+		Runners:        []*model.Runner{populatedRunner("1")},
+	}
+}
+
 func populatedEvent() *model.Event {
 	return &model.Event{
 		ID:            "evt-1",
@@ -82,6 +113,7 @@ func populatedEvent() *model.Event {
 		EventTypeID:   &model.OptionalString{Value: "rugby_league", Deleted: true},
 		SportData:     populatedSportEvent(),
 		Display:       &model.OptionalBool{Value: true, Deleted: true},
+		RacingData:    populatedRacingEvent(),
 	}
 }
 
@@ -119,6 +151,49 @@ func TestMergeSportEvent_MergesEveryField(t *testing.T) {
 	result := merger.MergeSportEvent(context.Background(), &model.SportEvent{}, right)
 
 	assert.True(t, proto.Equal(right, result), "MergeSportEvent dropped a field:\n want %v\n got  %v", right, result)
+}
+
+func TestMergeRacingEvent_MergesEveryField(t *testing.T) {
+	right := populatedRacingEvent()
+	assertAllFieldsSet(t, right.ProtoReflect(), "RacingEvent")
+
+	result := merger.MergeRacingEvent(context.Background(), &model.RacingEvent{}, right)
+
+	assert.True(t, proto.Equal(right, result), "MergeRacingEvent dropped a field:\n want %v\n got  %v", right, result)
+}
+
+func TestMergeRunner_MergesEveryField(t *testing.T) {
+	right := populatedRunner("1")
+	assertAllFieldsSet(t, right.ProtoReflect(), "Runner")
+
+	result := merger.MergeRunner(context.Background(), &model.Runner{}, right)
+
+	assert.True(t, proto.Equal(right, result), "MergeRunner dropped a field:\n want %v\n got  %v", right, result)
+}
+
+// Runners merge by ID, so a scratching that names one runner must leave the
+// rest of the field untouched.
+func TestMergeRunnerSlice_MergesByID(t *testing.T) {
+	existing := []*model.Runner{
+		{ID: "1", Name: &model.OptionalString{Value: "Winx"}},
+		{ID: "2", Name: &model.OptionalString{Value: "Black Caviar"}},
+		{ID: "3", Name: &model.OptionalString{Value: "Phar Lap"}},
+	}
+	scratching := []*model.Runner{
+		{ID: "2", Scratched: &model.OptionalBool{Value: true}},
+	}
+
+	result := merger.MergeRunnerSlice(context.Background(), existing, scratching)
+
+	assert.Len(t, result, 3)
+	byID := map[string]*model.Runner{}
+	for _, r := range result {
+		byID[r.GetID()] = r
+	}
+	assert.True(t, byID["2"].GetScratched().GetValue(), "runner 2 should be scratched")
+	assert.Equal(t, "Black Caviar", byID["2"].GetName().GetValue(), "scratching must not drop the name")
+	assert.False(t, byID["1"].GetScratched().GetValue(), "runner 1 must be untouched")
+	assert.False(t, byID["3"].GetScratched().GetValue(), "runner 3 must be untouched")
 }
 
 // Merge semantics for the Display field: set, hide, re-show, and leave alone.

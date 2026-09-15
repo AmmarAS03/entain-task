@@ -19,8 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	Service_Update_FullMethodName        = "/core.Service/Update"
-	Service_GetSportEvent_FullMethodName = "/core.Service/GetSportEvent"
+	Service_Update_FullMethodName         = "/core.Service/Update"
+	Service_GetSportEvent_FullMethodName  = "/core.Service/GetSportEvent"
+	Service_GetRacingEvent_FullMethodName = "/core.Service/GetRacingEvent"
 )
 
 // ServiceClient is the client API for Service service.
@@ -31,6 +32,8 @@ type ServiceClient interface {
 	Update(ctx context.Context, in *UpdateRequest, opts ...grpc.CallOption) (*UpdateResponse, error)
 	// GetSportEvent retrieves a model.Event from the database and returns a core.SportEvent - this is a more UserConsumable representation of the model that is specific to sport events
 	GetSportEvent(ctx context.Context, in *GetSportEventRequest, opts ...grpc.CallOption) (*GetSportEventResponse, error)
+	// GetRacingEvent retrieves a model.Event from the database and returns a core.RacingEvent - a race card style view for consumers of racing events
+	GetRacingEvent(ctx context.Context, in *GetRacingEventRequest, opts ...grpc.CallOption) (*GetRacingEventResponse, error)
 }
 
 type serviceClient struct {
@@ -61,6 +64,16 @@ func (c *serviceClient) GetSportEvent(ctx context.Context, in *GetSportEventRequ
 	return out, nil
 }
 
+func (c *serviceClient) GetRacingEvent(ctx context.Context, in *GetRacingEventRequest, opts ...grpc.CallOption) (*GetRacingEventResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetRacingEventResponse)
+	err := c.cc.Invoke(ctx, Service_GetRacingEvent_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // ServiceServer is the server API for Service service.
 // All implementations should embed UnimplementedServiceServer
 // for forward compatibility.
@@ -69,6 +82,8 @@ type ServiceServer interface {
 	Update(context.Context, *UpdateRequest) (*UpdateResponse, error)
 	// GetSportEvent retrieves a model.Event from the database and returns a core.SportEvent - this is a more UserConsumable representation of the model that is specific to sport events
 	GetSportEvent(context.Context, *GetSportEventRequest) (*GetSportEventResponse, error)
+	// GetRacingEvent retrieves a model.Event from the database and returns a core.RacingEvent - a race card style view for consumers of racing events
+	GetRacingEvent(context.Context, *GetRacingEventRequest) (*GetRacingEventResponse, error)
 }
 
 // UnimplementedServiceServer should be embedded to have
@@ -83,6 +98,9 @@ func (UnimplementedServiceServer) Update(context.Context, *UpdateRequest) (*Upda
 }
 func (UnimplementedServiceServer) GetSportEvent(context.Context, *GetSportEventRequest) (*GetSportEventResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method GetSportEvent not implemented")
+}
+func (UnimplementedServiceServer) GetRacingEvent(context.Context, *GetRacingEventRequest) (*GetRacingEventResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetRacingEvent not implemented")
 }
 func (UnimplementedServiceServer) testEmbeddedByValue() {}
 
@@ -140,6 +158,24 @@ func _Service_GetSportEvent_Handler(srv interface{}, ctx context.Context, dec fu
 	return interceptor(ctx, in, info, handler)
 }
 
+func _Service_GetRacingEvent_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetRacingEventRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(ServiceServer).GetRacingEvent(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: Service_GetRacingEvent_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(ServiceServer).GetRacingEvent(ctx, req.(*GetRacingEventRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // Service_ServiceDesc is the grpc.ServiceDesc for Service service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -154,6 +190,10 @@ var Service_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetSportEvent",
 			Handler:    _Service_GetSportEvent_Handler,
+		},
+		{
+			MethodName: "GetRacingEvent",
+			Handler:    _Service_GetRacingEvent_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
