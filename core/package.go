@@ -19,8 +19,15 @@ const (
 )
 
 // formatStartTime renders an epoch nanosecond timestamp in the form the
-// consumer facing messages use.
+// consumer facing messages use. An unset StartTime renders as an empty string
+// rather than 1970-01-01: zero means "not set" for a timestamp in this codebase
+// (see marketclosetransform's ClosedAt guard), and reporting a date the event
+// does not have makes the read RPCs disagree with a SearchEvents date filter,
+// which can only match events that really have one.
 func formatStartTime(startTime *model.OptionalInt64) string {
+	if startTime.GetValue() == 0 {
+		return ""
+	}
 	return time.Unix(0, startTime.GetValue()).Format(time.RFC3339)
 }
 
@@ -102,6 +109,19 @@ func (to *RacingEvent) ConvertFromModel(event *model.Event) {
 	sort.Slice(to.Runners, func(i, j int) bool {
 		return to.Runners[i].Number < to.Runners[j].Number
 	})
+}
+
+// ConvertFromModel converts a model.Event to a core.EventSummary, the shape
+// SearchEvents returns. It deliberately carries no sport or racing specific
+// fields, so one result slice can hold both kinds of event.
+func (to *EventSummary) ConvertFromModel(event *model.Event) {
+	to.ID = event.GetID()
+	to.Name = event.GetName().GetValue()
+	to.StartTime = formatStartTime(event.GetStartTime())
+	to.BettingStatus = event.GetBettingStatus().GetValue().String()
+	to.EventTypeID = event.GetEventTypeID().GetValue()
+	// Unset Display defaults to false (hidden), matching SportEvent and RacingEvent.
+	to.Display = event.GetDisplay().GetValue()
 }
 
 // runnerSelections indexes the Win and Place selections by Selection ID in a

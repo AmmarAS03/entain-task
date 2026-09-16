@@ -1,0 +1,34 @@
+{
+    "Event": {
+        "ID": "testEventThree",
+        "Name": {
+            "Value": "South Sydney Rabbitohs vs Penrith Panthers"
+        },
+        "StartTime": {
+            "Value": 1758402000000000000
+        },
+        "BettingStatus": {
+            "Value": "BettingOpen"
+        },
+        "EventTypeID": {
+            "Value": "rugby_league"
+        },
+        "Display": {
+            "Value": false
+        },
+        "SportData": {
+            "Name": {
+                "Value": "Rugby League"
+            },
+            "Region": {
+                "Value": "Australia"
+            },
+            "League": {
+                "Value": "NRL"
+            },
+            "Round": {
+                "Value": "3"
+            }
+        }
+    }
+}

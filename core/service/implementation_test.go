@@ -366,3 +366,90 @@ func TestService_IntegrationTest_MarketClose(t *testing.T) {
 	})
 	assert.Equal(t, firstClose, marketOf().GetClosedAt().GetValue(), "ClosedAt freezes at the first close")
 }
+
+// TestService_IntegrationTest_SearchEvents covers SearchEvents end to end
+// through the real RPC: three events with different dates/statuses/display,
+// then a combined filter narrowing to one, asserting the EventSummary fields
+// render as flat types rather than the model's Optional* wrappers.
+//
+// Uses its own database, not the shared "codetest" dev database: unlike every
+// other integration test in this file, which fetches by a unique ID,
+// SearchEvents scans the whole collection, so a stray document left behind by
+// ./run_local.sh could make the count-based assertions here flaky. This is a
+// different database from core/repository/mongo_test.go's search tests
+// ("codetest_search_test") on purpose: go test ./... runs package binaries
+// concurrently, so two packages sharing one search database would still see
+// each other's documents mid-run - the same flakiness this isolation exists
+// to prevent, just moved one level up.
+func TestService_IntegrationTest_SearchEvents(t *testing.T) {
+	repo, err := repository.NewMongoRepository(context.Background(), "mongodb://localhost:27017", "codetest_search_service_test")
+	assert.NoError(t, err)
+	defer repo.Close(context.Background())
+
+	host := &service.Service{
+		Upstreams: &service.Upstreams{
+			MergerClient: merger.NewInlineMergerClient(),
+			Repo:         repo,
+			Transforms: []transforms.TransformClient{
+				sporttransform.NewSportTransformClient(),
+				marketclosetransform.NewMarketCloseTransformClient(),
+			},
+		},
+	}
+
+	const baseTime = int64(1758244443000000000) // Friday, September 19, 2025 11:14:03 AM GMT+10:00
+	hour := int64(3600000000000)
+
+	events := []*model.Event{
+		{
+			ID:            "integration-search-1",
+			Name:          &model.OptionalString{Value: "Open and shown"},
+			EventTypeID:   &model.OptionalString{Value: "soccer"},
+			StartTime:     &model.OptionalInt64{Value: baseTime},
+			BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen},
+			Display:       &model.OptionalBool{Value: true},
+		},
+		{
+			ID:            "integration-search-2",
+			Name:          &model.OptionalString{Value: "Closed and hidden"},
+			EventTypeID:   &model.OptionalString{Value: "soccer"},
+			StartTime:     &model.OptionalInt64{Value: baseTime + hour},
+			BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingClosed},
+			Display:       &model.OptionalBool{Value: false},
+		},
+		{
+			ID:            "integration-search-3",
+			Name:          &model.OptionalString{Value: "Open, outside the window"},
+			EventTypeID:   &model.OptionalString{Value: "soccer"},
+			StartTime:     &model.OptionalInt64{Value: baseTime + 10*hour},
+			BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen},
+			Display:       &model.OptionalBool{Value: true},
+		},
+	}
+	for _, event := range events {
+		_, uErr := host.Update(context.Background(), &core.UpdateRequest{Event: event})
+		assert.NoError(t, uErr)
+		defer repo.DeleteEventByID(context.Background(), event.ID)
+	}
+
+	from := baseTime
+	to := baseTime + 2*hour
+	status := model.BettingStatus_BettingOpen
+	display := true
+	got, err := host.SearchEvents(context.Background(), &core.SearchEventsRequest{
+		StartTimeFrom: &model.OptionalInt64{Value: from},
+		StartTimeTo:   &model.OptionalInt64{Value: to},
+		BettingStatus: &model.OptionalBettingStatus{Value: status},
+		Display:       &model.OptionalBool{Value: display},
+	})
+	assert.NoError(t, err)
+
+	assert.Len(t, got.Events, 1, "only the first event is open, shown, and inside the window")
+	summary := got.Events[0]
+	assert.Equal(t, "integration-search-1", summary.ID)
+	assert.Equal(t, "Open and shown", summary.Name)
+	assert.Equal(t, "BettingOpen", summary.BettingStatus, "summary renders the flat string form, not the model enum")
+	assert.True(t, summary.Display)
+	assert.Equal(t, "soccer", summary.EventTypeID)
+	assert.Contains(t, summary.StartTime, "2025-09-19")
+}

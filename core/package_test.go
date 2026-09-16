@@ -85,3 +85,69 @@ func TestRacingEvent_ConvertFromModel_RaceStatusEmptyOnSportEvent(t *testing.T) 
 
 	assert.Empty(t, out.RaceStatus)
 }
+
+// A fully populated event should render every EventSummary field as its flat
+// consumer-facing type, not the model's Optional* wrapper.
+func TestEventSummary_ConvertFromModel_FullyPopulated(t *testing.T) {
+	event := &model.Event{
+		ID:            "evt-1",
+		Name:          &model.OptionalString{Value: "Test Event"},
+		StartTime:     &model.OptionalInt64{Value: 1758244443000000000},
+		BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen},
+		EventTypeID:   &model.OptionalString{Value: "soccer"},
+		Display:       &model.OptionalBool{Value: true},
+	}
+
+	out := &core.EventSummary{}
+	out.ConvertFromModel(event)
+
+	assert.Equal(t, "evt-1", out.ID)
+	assert.Equal(t, "Test Event", out.Name)
+	assert.Contains(t, out.StartTime, "2025-09-19")
+	assert.Equal(t, "BettingOpen", out.BettingStatus)
+	assert.Equal(t, "soccer", out.EventTypeID)
+	assert.True(t, out.Display)
+}
+
+// A sparse event (nil Display, nil StartTime, nil BettingStatus) should
+// convert to zero-value defaults rather than panicking - in particular,
+// unset Display must default to false (hidden), matching Task 1's semantics
+// for SportEvent and RacingEvent, and unset StartTime must render as an empty
+// string rather than the 1970-01-01 formatStartTime used to produce (zero
+// means "not set" for a timestamp in this codebase - see
+// marketclosetransform's ClosedAt guard - and a 1970 date the event does not
+// really have would disagree with what a SearchEvents date filter can match).
+func TestEventSummary_ConvertFromModel_Sparse(t *testing.T) {
+	event := &model.Event{ID: "evt-2"}
+
+	out := &core.EventSummary{}
+	out.ConvertFromModel(event)
+
+	assert.Equal(t, "evt-2", out.ID)
+	assert.Empty(t, out.Name)
+	assert.Empty(t, out.StartTime, "unset StartTime must not render as 1970-01-01")
+	assert.Equal(t, "BettingUnknown", out.BettingStatus, "unset BettingStatus renders its zero enum value, same as SportEvent/RacingEvent")
+	assert.Empty(t, out.EventTypeID)
+	assert.False(t, out.Display)
+}
+
+// SportEvent and RacingEvent share formatStartTime with EventSummary, so an
+// unset StartTime must render as an empty string on all three views, not just
+// the one that happened to get tested first.
+func TestSportEvent_ConvertFromModel_UnsetStartTimeIsEmpty(t *testing.T) {
+	event := &model.Event{ID: "evt-3", SportData: &model.SportEvent{Name: &model.OptionalString{Value: "Soccer"}}}
+
+	out := &core.SportEvent{}
+	out.ConvertFromModel(event)
+
+	assert.Empty(t, out.StartTime, "unset StartTime must not render as 1970-01-01")
+}
+
+func TestRacingEvent_ConvertFromModel_UnsetStartTimeIsEmpty(t *testing.T) {
+	event := &model.Event{ID: "evt-4", RacingData: &model.RacingEvent{TrackName: &model.OptionalString{Value: "Randwick"}}}
+
+	out := &core.RacingEvent{}
+	out.ConvertFromModel(event)
+
+	assert.Empty(t, out.StartTime, "unset StartTime must not render as 1970-01-01")
+}
