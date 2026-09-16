@@ -1,3 +1,6 @@
+# Walkthrough Video
+https://www.loom.com/share/714c989475b24b3194aa3a2c72b94528
+
 # Process
 
 This is a short walkthrough of how I worked through the five tasks. More detailed documentation for each task are written up per task in `docs/task-0N-*.md`.
