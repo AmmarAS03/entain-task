@@ -39,7 +39,7 @@ func main() {
 	app.Action = func(_ *cli.Context) error {
 		log.SetFormatter(&log.TextFormatter{})
 
-		repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+		repo, err := repository.NewMongoRepository(context.Background(), "mongodb://localhost:27017", "codetest")
 		if err != nil {
 			return err
 		}
@@ -84,6 +84,9 @@ func main() {
 		errStop := service.Stop(shutdownCtx)
 		if errStop != nil {
 			log.WithError(errStop).Warn("shutdown_error")
+		}
+		if errClose := repo.Close(shutdownCtx); errClose != nil {
+			log.WithError(errClose).Warn("repo_close_error")
 		}
 		log.Info("shutdown_complete")
 		return nil
