@@ -20,7 +20,7 @@
 | `exampledata/10_search_event_two.json`, `11_search_event_three.json` | Two more events, on different dates/statuses/display values, so the existing `testEvent` plus these three give the demo below something to filter |
 
 No `model.Event` field is added or changed by this task, so the 3-places rule
-(proto / merger / read-out) does not apply to anything here — see the plan for
+(proto / merger / read-out) does not apply to anything here. See the plan for
 the full breakdown. `merger/`, `core/transforms/`, `core/cmd/core/main.go`, and
 `model/event.proto` are untouched.
 
@@ -32,14 +32,14 @@ Events are now sport *or* racing (Task 2). Reusing `core.SportEvent` would
 silently report empty `SportName`/`Region`/`League`/`Round` for a matched
 race; `core.RacingEvent` would do the reverse for a matched sport event.
 Returning `model.Event` directly would leak the `Optional*` wrapper types to
-consumers — the exact thing the `core.*` response views exist to hide.
+consumers, which is exactly what the `core.*` response views exist to hide.
 `EventSummary` is sport-agnostic, carries just enough to identify and triage a
 result, and points the consumer at `GetSportEvent`/`GetRacingEvent` for detail.
 
 ### Date filter: `StartTimeFrom`/`StartTimeTo`, epoch nanoseconds, from inclusive, to exclusive
 
 Maps directly onto Mongo's `$gte`/`$lt`. A single day is `[start of day, start
-of next day)`. Timezone conversion is left to the caller — a race meeting can
+of next day)`. Timezone conversion is left to the caller. A race meeting can
 span two UTC days, and the service has no basis for guessing which timezone
 the caller means.
 
@@ -47,15 +47,15 @@ the caller means.
 
 Every read RPC (`GetSportEvent`, `GetRacingEvent`, and this task's own
 `EventSummary`) resolves a nil `Optional*` field to that field's proto
-zero value — `false` for `Display`, the enum's zero member for
-`BettingStatus`, epoch nanosecond `0` for `StartTime` — because that is what
+zero value: `false` for `Display`, the enum's zero member for
+`BettingStatus`, epoch nanosecond `0` for `StartTime`. That is what
 proto's generated `Get*()` chain does on a nil message, and every converter in
 `core/package.go` goes through that chain. Task 4 stores that same nil as a
 literal BSON `null`, which a plain equality or range query does not match. So
 without deliberate handling, searching for the value an event's field *reads
-as* silently excludes an event whose field was never set — `SearchEvents`
-would disagree with the RPC that reported that exact value for that exact
-event. This section covers how each of the three filters was actually
+as* silently excludes an event whose field was never set. `SearchEvents`
+would then disagree with the RPC that reported that exact value for that
+exact event. This section covers how each of the three filters was actually
 resolved, and why two of them ended up with opposite treatments.
 
 **`Display: false` matches explicitly-false and never-set.** Task 1
@@ -74,7 +74,7 @@ if *filter.Display {
 
 **`BettingStatus: BettingUnknown` matches never-set, the other three values
 don't.** `BettingUnknown` is the enum's zero value and is literally named
-"unknown" — "never set" and "explicitly unknown" are the same claim about an
+"unknown". "Never set" and "explicitly unknown" are the same claim about an
 event, so only that one value gets widened:
 
 ```go
@@ -88,23 +88,23 @@ if *filter.BettingStatus == model.BettingStatus_BettingUnknown {
 **The trap this must avoid:** `{path: null}` matches a *missing* path, not
 just an explicit `null` value. Applying `$in: [value, nil]` to a non-zero
 status (e.g. `BettingOpen`) would wrongly also match every event with no
-status at all — a worse bug than the one being fixed. The widening is gated
+status at all, a worse bug than the one being fixed. The widening is gated
 on the filter value being the zero enum specifically because that's the only
-value where "no status" is genuinely the answer being asked for; a dedicated
+value where "no status" is genuinely the answer being asked for. A dedicated
 test (`Test_mongoRepo_SearchEvents_UnsetFields`) asserts `BettingOpen` returns
 only the explicitly-open event, not the unset one.
 
-**`StartTime` gets the opposite treatment — fixed at the source instead of
+**`StartTime` gets the opposite treatment: fixed at the source instead of
 widened in the query.** Epoch `0` is not a meaningful default the way `false`
-and `BettingUnknown` are: `1970-01-01` was never a decision anyone made, just
+and `BettingUnknown` are. `1970-01-01` was never a decision anyone made, just
 an artifact of `time.Unix(0, 0)`. Matching null `StartTime` in the query would
-also be window-dependent nonsense — a `[0, Feb 2026]` window would return
+also be window-dependent nonsense: a `[0, Feb 2026]` window would return
 dateless events while `[Jan 2026, Feb 2026]` would not, for the same
-underlying data. And this codebase already treats `0` as "unset" for a
+underlying data. This codebase already treats `0` as "unset" for a
 timestamp elsewhere (`marketclosetransform`'s `ClosedAt` guard checks
 `GetValue() != 0`, not nil-ness). So instead of teaching the date filter to
-match null, `formatStartTime` — the one function shared by all three response
-views — stops rendering a zero/unset `StartTime` as 1970 and returns an empty
+match null, `formatStartTime`, the one function shared by all three response
+views, stops rendering a zero/unset `StartTime` as 1970 and returns an empty
 string instead:
 
 ```go
@@ -116,22 +116,22 @@ func formatStartTime(startTime *model.OptionalInt64) string {
 }
 ```
 
-The date filter's query is unchanged — `$gte`/`$lt` on `starttime.value` now
+The date filter's query is unchanged. `$gte`/`$lt` on `starttime.value` now
 means exactly what it says: events that *have* a start time in this window.
 Because the fix lives in the shared helper, `GetSportEvent` and
 `GetRacingEvent` render an unset `StartTime` as an empty string too, not just
-`SearchEvents`'s own view — a visible, deliberate change to those two RPCs'
-output, not something scoped to just this task's new code.
+`SearchEvents`'s own view. This is a visible, deliberate change to those two
+RPCs' output, not something scoped to just this task's new code.
 
 **Measured index cost.** The `Display` `$ne: true` branch and the
 `BettingStatus` `$in` widening look similar but cost differently:
 
 | Query | Plan | Bounds |
 |---|---|---|
-| `{"bettingstatus.value": {$in:[0,null]}}` | IXSCAN | `["[null, null]", "[0, 0]"]` — two point lookups |
-| `{"display.value": {$ne: true}}` | IXSCAN | `["[MinKey, true)", "(true, MaxKey]"]` — everything but one point |
+| `{"bettingstatus.value": {$in:[0,null]}}` | IXSCAN | `["[null, null]", "[0, 0]"]`, two point lookups |
+| `{"display.value": {$ne: true}}` | IXSCAN | `["[MinKey, true)", "(true, MaxKey]"]`, everything but one point |
 
-Both use their index — `$ne: true` isn't a table scan — but `$in` on the zero
+Both use their index. `$ne: true` isn't a table scan, but `$in` on the zero
 enum is two tight point lookups, effectively free, while `$ne: true` scans
 nearly the whole index. `BettingStatus` only needed the cheap version because
 only one of its four values needed widening at all.
@@ -140,7 +140,7 @@ only one of its four values needed widening at all.
 
 The README's literal reading of "date and/or bettingstatus and/or display".
 Each filter is independently optional, so "none supplied" is the degenerate
-case of that, not an error — `SearchEvents({})` returns the whole collection.
+case of that, not an error. `SearchEvents({})` returns the whole collection.
 See Notes/limitations below for the size implication.
 
 ### No pagination
@@ -162,7 +162,7 @@ startup) creates one index each on `starttime.value`, `bettingstatus.value`,
 and `display.value`. The three filters are independently optional, giving 2³
 possible query shapes; a compound index only serves queries that use its
 prefix, while three single-field indexes let Mongo pick the most selective one
-(or intersect several) for any combination. Task 4 shipped with none — there
+(or intersect several) for any combination. Task 4 shipped with none. There
 was exactly one access pattern (`_id`) until this task introduced the first
 query that can table-scan.
 
@@ -171,6 +171,48 @@ needs write permission and is a round trip on every startup; if it fails,
 `SearchEvents` still returns correct results, just slower. Refusing to boot
 over a missing index would be strictly worse than booting slow, so the error
 is logged at `Warn` and the service continues.
+
+## Scalability
+
+Three choices above exist specifically because "return a slice of all events that match"
+doesn't stay cheap as the event collection grows past code-test scale, and it's worth
+stating plainly why each one helps.
+
+**Server-side filtering, not fetch-everything-and-filter-in-Go.** The alternative
+implementation decodes every stored event into a `model.Event`, then applies the three
+filters in application code. That moves the entire collection across the wire and through
+proto deserialization on *every* search, no matter how selective the filter is.
+`mongoRepo.SearchEvents` instead builds a `bson.M` query and lets Mongo evaluate it
+server-side, which is only possible because Task 4 stores native BSON rather than an
+opaque blob (`docs/task-04-mongodb.md`). The driver only returns, and this service only
+decodes, documents that actually match. A search for one betting status among ten
+thousand events reads and returns ten, not ten thousand.
+
+**Indexes turn that into a seek, not a scan.** Server-side filtering alone still means
+Mongo examines every document (a full collection scan) to decide what matches, unless
+there's an index to seek through instead. `ensureIndexes` creates one index each on
+`starttime.value`, `bettingstatus.value`, and `display.value`, so a query on any of them
+resolves as an index seek, with cost proportional to the *result* size, not the collection
+size. This is the difference between a search that gets slower as the event history grows
+and one that doesn't.
+
+**Three single-field indexes, not one compound, because the filters are independently
+optional.** A compound index only serves queries that use its prefix, so a single
+`(starttime, bettingstatus, display)` index would only fully help the one query shape that
+filters on all three in that order. Any of the other seven combinations (§ "Multiple
+filters combine with AND") would fall back to a partial or full scan. Three single-field
+indexes let Mongo's query planner pick whichever is most selective for whatever
+combination of filters actually shows up, or intersect them, without needing one index
+per combination.
+
+**A lean `EventSummary`, not the full `model.Event`, per matched row.** Since there's no
+pagination (§ "No pagination"), every byte returned scales with the result count with no
+ceiling of its own. Returning six flat fields instead of the full nested `model.Event`
+(markets, selections, `Optional*` wrappers) keeps that per-row cost small, which matters
+more here than on a paginated endpoint, since there's no page size capping how many rows
+that cost gets multiplied by.
+
+
 
 ## Verifying
 
@@ -182,7 +224,7 @@ go test ./... -short -cover
 ./core/check.sh
 ```
 
-(`go test ./... -short -cover` — and therefore `./core/check.sh`, which runs it —
+(`go test ./... -short -cover`, and therefore `./core/check.sh` which runs it,
 prints `go: no such tool "covdata"` for packages with no test files, such as
 `core/cmd/core` and `model`. This is a pre-existing toolchain gap unrelated to
 this task: it reproduces identically on `main`. `go test ./... -short` without
@@ -238,7 +280,7 @@ the default `_id_` index.
 - **Unbounded result set.** `SearchEvents({})` decodes every event in the
   collection into memory in one response. Fine at code-test scale; a
   production hazard at real scale. The README explicitly asks for "all events
-  that match", so no pagination was added — but this is the first thing that
+  that match", so no pagination was added. This is still the first thing that
   would need to change before this endpoint saw real traffic, and it would hit
   the gRPC `MaxSendMsgSize` of 64MB already set in `core/service/service.go`
   before anything else did.
@@ -256,7 +298,7 @@ the default `_id_` index.
   other's documents mid-run and fail on the exact same "someone else's
   machine, looks like a real bug" flakiness this isolation exists to prevent.
 - **`.claude/CLAUDE.md` is stale**, describing Redis as the repository and a
-  four-method `Repository` interface — both changed in Task 4, and this task
+  four-method `Repository` interface. Both changed in Task 4, and this task
   adds a fifth method on top. Out of scope here (and `README.md`/existing task
   docs must stay untouched), but worth a follow-up commit so it isn't
   rediscovered as a surprise.
@@ -264,12 +306,12 @@ the default `_id_` index.
   empty string, not `1970-01-01T...`.** `formatStartTime` is the one function
   behind all three response views, so fixing the disagreement between
   `SearchEvents` and the read RPCs (see "The general rule" above) necessarily
-  changes what those two RPCs return for an event that never set `StartTime`
-  — a visible output change to Tasks 1 and 2, landing inside this task's
+  changes what those two RPCs return for an event that never set `StartTime`.
+  This is a visible output change to Tasks 1 and 2, landing inside this task's
   fix-up. `docs/task-01-display.md` and `docs/task-02-racing.md` are
   point-in-time records and are not being retroactively edited to reflect
   this; it's recorded here since this is the change that caused it. Because
   `EventSummary.StartTime` (and `SportEvent`/`RacingEvent`'s) is a proto3
   `string`, an empty value is simply omitted from JSON output rather than
-  rendered as an empty key — absent, not wrong, but worth knowing so it
+  rendered as an empty key. That's absent, not wrong, but worth knowing so it
   doesn't look like a missing field in Postman.
