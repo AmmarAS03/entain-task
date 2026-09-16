@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"testing"
 
+	"git.neds.sh/technology/pricekinetics/tools/codetest/internal/modeltest"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/merger"
 	"git.neds.sh/technology/pricekinetics/tools/codetest/model"
 	"github.com/stretchr/testify/assert"
@@ -43,83 +44,8 @@ func assertAllFieldsSet(t *testing.T, msg protoreflect.Message, path string) {
 	}
 }
 
-// Deleted is set on every fixture so all fields register as present.
-func populatedSelection(id string) *model.Selection {
-	return &model.Selection{
-		ID:            id,
-		Name:          &model.OptionalString{Value: "Home Team", Deleted: true},
-		BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen, Deleted: true},
-		Price:         &model.OptionalDouble{Value: 1.80, Deleted: true},
-	}
-}
-
-func populatedMarket(id string) *model.Market {
-	return &model.Market{
-		ID:            id,
-		Name:          &model.OptionalString{Value: "Head to Head", Deleted: true},
-		StartTime:     &model.OptionalInt64{Value: 1758244443000000000, Deleted: true},
-		BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen, Deleted: true},
-		Selections:    []*model.Selection{populatedSelection("sel-1")},
-		ClosedAt:      &model.OptionalInt64{Value: 1758244443000000000, Deleted: true},
-	}
-}
-
-func populatedSportEvent() *model.SportEvent {
-	return &model.SportEvent{
-		Name:   &model.OptionalString{Value: "Rugby League", Deleted: true},
-		Region: &model.OptionalString{Value: "AU", Deleted: true},
-		League: &model.OptionalString{Value: "NRL", Deleted: true},
-		Round:  &model.OptionalString{Value: "12", Deleted: true},
-	}
-}
-
-func populatedRunner(id string) *model.Runner {
-	return &model.Runner{
-		ID:             id,
-		Number:         &model.OptionalInt64{Value: 3, Deleted: true},
-		Name:           &model.OptionalString{Value: "Winx", Deleted: true},
-		Barrier:        &model.OptionalInt64{Value: 4, Deleted: true},
-		Weight:         &model.OptionalDouble{Value: 58.5, Deleted: true},
-		Jockey:         &model.OptionalString{Value: "H Bowman", Deleted: true},
-		Trainer:        &model.OptionalString{Value: "C Waller", Deleted: true},
-		Scratched:      &model.OptionalBool{Value: true, Deleted: true},
-		Silks:          &model.OptionalString{Value: "navy, white star", Deleted: true},
-		FinishPosition: &model.OptionalInt64{Value: 1, Deleted: true},
-	}
-}
-
-func populatedRacingEvent() *model.RacingEvent {
-	return &model.RacingEvent{
-		Name:           &model.OptionalString{Value: "Horse Racing", Deleted: true},
-		Region:         &model.OptionalString{Value: "AU", Deleted: true},
-		TrackName:      &model.OptionalString{Value: "Randwick", Deleted: true},
-		RaceNumber:     &model.OptionalInt64{Value: 5, Deleted: true},
-		DistanceMetres: &model.OptionalInt64{Value: 1600, Deleted: true},
-		TrackCondition: &model.OptionalString{Value: "Good 4", Deleted: true},
-		Weather:        &model.OptionalString{Value: "Fine", Deleted: true},
-		RaceClass:      &model.OptionalString{Value: "Group 1", Deleted: true},
-		RaceStatus:     &model.OptionalRaceStatus{Value: model.RaceStatus_RaceScheduled, Deleted: true},
-		FieldSize:      &model.OptionalInt64{Value: 12, Deleted: true},
-		Runners:        []*model.Runner{populatedRunner("1")},
-	}
-}
-
-func populatedEvent() *model.Event {
-	return &model.Event{
-		ID:            "evt-1",
-		Name:          &model.OptionalString{Value: "Test Event", Deleted: true},
-		StartTime:     &model.OptionalInt64{Value: 1758244443000000000, Deleted: true},
-		BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen, Deleted: true},
-		Markets:       []*model.Market{populatedMarket("mkt-1")},
-		EventTypeID:   &model.OptionalString{Value: "rugby_league", Deleted: true},
-		SportData:     populatedSportEvent(),
-		Display:       &model.OptionalBool{Value: true, Deleted: true},
-		RacingData:    populatedRacingEvent(),
-	}
-}
-
 func TestMergeEvent_MergesEveryField(t *testing.T) {
-	right := populatedEvent()
+	right := modeltest.PopulatedEvent()
 	assertAllFieldsSet(t, right.ProtoReflect(), "Event")
 
 	result := merger.MergeEvent(context.Background(), &model.Event{}, right)
@@ -128,7 +54,7 @@ func TestMergeEvent_MergesEveryField(t *testing.T) {
 }
 
 func TestMergeMarket_MergesEveryField(t *testing.T) {
-	right := populatedMarket("mkt-1")
+	right := modeltest.PopulatedMarket("mkt-1")
 	assertAllFieldsSet(t, right.ProtoReflect(), "Market")
 
 	result := merger.MergeMarket(context.Background(), &model.Market{}, right)
@@ -137,7 +63,7 @@ func TestMergeMarket_MergesEveryField(t *testing.T) {
 }
 
 func TestMergeSelection_MergesEveryField(t *testing.T) {
-	right := populatedSelection("sel-1")
+	right := modeltest.PopulatedSelection("sel-1")
 	assertAllFieldsSet(t, right.ProtoReflect(), "Selection")
 
 	result := merger.MergeSelection(context.Background(), &model.Selection{}, right)
@@ -146,7 +72,7 @@ func TestMergeSelection_MergesEveryField(t *testing.T) {
 }
 
 func TestMergeSportEvent_MergesEveryField(t *testing.T) {
-	right := populatedSportEvent()
+	right := modeltest.PopulatedSportEvent()
 	assertAllFieldsSet(t, right.ProtoReflect(), "SportEvent")
 
 	result := merger.MergeSportEvent(context.Background(), &model.SportEvent{}, right)
@@ -155,7 +81,7 @@ func TestMergeSportEvent_MergesEveryField(t *testing.T) {
 }
 
 func TestMergeRacingEvent_MergesEveryField(t *testing.T) {
-	right := populatedRacingEvent()
+	right := modeltest.PopulatedRacingEvent()
 	assertAllFieldsSet(t, right.ProtoReflect(), "RacingEvent")
 
 	result := merger.MergeRacingEvent(context.Background(), &model.RacingEvent{}, right)
@@ -164,7 +90,7 @@ func TestMergeRacingEvent_MergesEveryField(t *testing.T) {
 }
 
 func TestMergeRunner_MergesEveryField(t *testing.T) {
-	right := populatedRunner("1")
+	right := modeltest.PopulatedRunner("1")
 	assertAllFieldsSet(t, right.ProtoReflect(), "Runner")
 
 	result := merger.MergeRunner(context.Background(), &model.Runner{}, right)

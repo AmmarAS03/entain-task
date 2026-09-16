@@ -12,4 +12,5 @@ type Repository interface {
 	GetEventByID(ctx context.Context, id string) (*model.Event, error)
 	UpdateEvent(ctx context.Context, event *model.Event) error
 	DeleteEventByID(ctx context.Context, id string) error
+	Close(ctx context.Context) error
 }

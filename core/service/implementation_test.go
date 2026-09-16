@@ -17,8 +17,9 @@ import (
 )
 
 func TestService_IntegrationTest_NewEvent(t *testing.T) {
-	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	repo, err := repository.NewMongoRepository(context.Background(), "mongodb://localhost:27017", "codetest")
 	assert.NoError(t, err)
+	defer repo.Close(context.Background())
 	defer repo.DeleteEventByID(context.Background(), "integration-test-1")
 	host := &service.Service{
 		Upstreams: &service.Upstreams{
@@ -69,8 +70,9 @@ func TestService_IntegrationTest_NewEvent(t *testing.T) {
 // TestService_IntegrationTest_Display covers Display end to end: unset, hidden,
 // unaffected by an unrelated update, then shown again.
 func TestService_IntegrationTest_Display(t *testing.T) {
-	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	repo, err := repository.NewMongoRepository(context.Background(), "mongodb://localhost:27017", "codetest")
 	assert.NoError(t, err)
+	defer repo.Close(context.Background())
 	defer repo.DeleteEventByID(context.Background(), "integration-test-display")
 
 	host := &service.Service{
@@ -130,8 +132,9 @@ func TestService_IntegrationTest_Display(t *testing.T) {
 // runners joined to their Win and Place prices, FieldSize derived by the
 // transform, and a late scratching moving it.
 func TestService_IntegrationTest_RacingEvent(t *testing.T) {
-	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	repo, err := repository.NewMongoRepository(context.Background(), "mongodb://localhost:27017", "codetest")
 	assert.NoError(t, err)
+	defer repo.Close(context.Background())
 	defer repo.DeleteEventByID(context.Background(), "integration-test-racing")
 
 	host := &service.Service{
@@ -244,8 +247,9 @@ func TestService_IntegrationTest_RacingEvent(t *testing.T) {
 // A racing event fetched through the sport RPC must not report racing data as
 // though it were sport data, and vice versa.
 func TestService_IntegrationTest_RacingAndSportViewsAreSeparate(t *testing.T) {
-	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	repo, err := repository.NewMongoRepository(context.Background(), "mongodb://localhost:27017", "codetest")
 	assert.NoError(t, err)
+	defer repo.Close(context.Background())
 	defer repo.DeleteEventByID(context.Background(), "integration-test-separation")
 
 	host := &service.Service{
@@ -288,8 +292,9 @@ func TestService_IntegrationTest_RacingAndSportViewsAreSeparate(t *testing.T) {
 // on first close, unaffected by an unrelated update, and frozen across a
 // reopen and re-close.
 func TestService_IntegrationTest_MarketClose(t *testing.T) {
-	repo, err := repository.NewRedisRepository(context.Background(), "localhost:6379", "")
+	repo, err := repository.NewMongoRepository(context.Background(), "mongodb://localhost:27017", "codetest")
 	assert.NoError(t, err)
+	defer repo.Close(context.Background())
 	defer repo.DeleteEventByID(context.Background(), "integration-test-close")
 
 	host := &service.Service{
