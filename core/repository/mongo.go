@@ -134,7 +134,21 @@ func (c *mongoRepo) SearchEvents(ctx context.Context, filter EventFilter) ([]*mo
 	}
 
 	if filter.BettingStatus != nil {
-		query["bettingstatus.value"] = int32(*filter.BettingStatus)
+		status := int32(*filter.BettingStatus)
+		if *filter.BettingStatus == model.BettingStatus_BettingUnknown {
+			// An event that never set a BettingStatus reads as "BettingUnknown"
+			// through every response view, because a nil OptionalBettingStatus
+			// resolves to the zero enum. Task 4 stores that nil as a null
+			// "bettingstatus" field, so an equality match would miss it and search
+			// would contradict what GetSportEvent says about the same event - the
+			// same reasoning that widened the Display filter. Only the zero enum
+			// gets this treatment: {path: null} also matches a missing path, so
+			// applying $in to a non-zero value would wrongly match every event
+			// with no status at all.
+			query["bettingstatus.value"] = bson.M{"$in": bson.A{status, nil}}
+		} else {
+			query["bettingstatus.value"] = status
+		}
 	}
 
 	if filter.Display != nil {

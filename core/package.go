@@ -19,8 +19,15 @@ const (
 )
 
 // formatStartTime renders an epoch nanosecond timestamp in the form the
-// consumer facing messages use.
+// consumer facing messages use. An unset StartTime renders as an empty string
+// rather than 1970-01-01: zero means "not set" for a timestamp in this codebase
+// (see marketclosetransform's ClosedAt guard), and reporting a date the event
+// does not have makes the read RPCs disagree with a SearchEvents date filter,
+// which can only match events that really have one.
 func formatStartTime(startTime *model.OptionalInt64) string {
+	if startTime.GetValue() == 0 {
+		return ""
+	}
 	return time.Unix(0, startTime.GetValue()).Format(time.RFC3339)
 }
 

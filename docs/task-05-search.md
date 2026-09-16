@@ -43,14 +43,24 @@ of next day)`. Timezone conversion is left to the caller — a race meeting can
 span two UTC days, and the service has no basis for guessing which timezone
 the caller means.
 
-### `Display: false` matches explicitly-false **and** never-set
+### The general rule: a filter for the value an unset field reads as must match unset events
 
-Task 1 established "unset `Display` means hidden", and `GetSportEvent`/
-`GetRacingEvent` already report a never-set event's `Display` as `false`. If
-`SearchEvents` disagreed with those RPCs about the same stored event, that
-would be a bug, not a nuance worth defending. Because Task 4 stores unset
-`Optional*` fields as BSON `null` rather than omitting them, "hidden" is
-implemented as "not explicitly `true`":
+Every read RPC (`GetSportEvent`, `GetRacingEvent`, and this task's own
+`EventSummary`) resolves a nil `Optional*` field to that field's proto
+zero value — `false` for `Display`, the enum's zero member for
+`BettingStatus`, epoch nanosecond `0` for `StartTime` — because that is what
+proto's generated `Get*()` chain does on a nil message, and every converter in
+`core/package.go` goes through that chain. Task 4 stores that same nil as a
+literal BSON `null`, which a plain equality or range query does not match. So
+without deliberate handling, searching for the value an event's field *reads
+as* silently excludes an event whose field was never set — `SearchEvents`
+would disagree with the RPC that reported that exact value for that exact
+event. This section covers how each of the three filters was actually
+resolved, and why two of them ended up with opposite treatments.
+
+**`Display: false` matches explicitly-false and never-set.** Task 1
+established "unset `Display` means hidden", so `false` is a state anyone
+searching would reach for. Implemented as "not explicitly `true`":
 
 ```go
 if *filter.Display {
@@ -60,10 +70,71 @@ if *filter.Display {
 }
 ```
 
-`$ne: true` matches `false`, `null`, and a missing field alike. The one cost:
-this branch cannot use the `display.value` index efficiently — negation and
-null-matching are poor index citizens. The index still fully serves the
-`Display: true` branch.
+`$ne: true` matches `false`, `null`, and a missing field alike.
+
+**`BettingStatus: BettingUnknown` matches never-set, the other three values
+don't.** `BettingUnknown` is the enum's zero value and is literally named
+"unknown" — "never set" and "explicitly unknown" are the same claim about an
+event, so only that one value gets widened:
+
+```go
+if *filter.BettingStatus == model.BettingStatus_BettingUnknown {
+    query["bettingstatus.value"] = bson.M{"$in": bson.A{status, nil}}
+} else {
+    query["bettingstatus.value"] = status
+}
+```
+
+**The trap this must avoid:** `{path: null}` matches a *missing* path, not
+just an explicit `null` value. Applying `$in: [value, nil]` to a non-zero
+status (e.g. `BettingOpen`) would wrongly also match every event with no
+status at all — a worse bug than the one being fixed. The widening is gated
+on the filter value being the zero enum specifically because that's the only
+value where "no status" is genuinely the answer being asked for; a dedicated
+test (`Test_mongoRepo_SearchEvents_UnsetFields`) asserts `BettingOpen` returns
+only the explicitly-open event, not the unset one.
+
+**`StartTime` gets the opposite treatment — fixed at the source instead of
+widened in the query.** Epoch `0` is not a meaningful default the way `false`
+and `BettingUnknown` are: `1970-01-01` was never a decision anyone made, just
+an artifact of `time.Unix(0, 0)`. Matching null `StartTime` in the query would
+also be window-dependent nonsense — a `[0, Feb 2026]` window would return
+dateless events while `[Jan 2026, Feb 2026]` would not, for the same
+underlying data. And this codebase already treats `0` as "unset" for a
+timestamp elsewhere (`marketclosetransform`'s `ClosedAt` guard checks
+`GetValue() != 0`, not nil-ness). So instead of teaching the date filter to
+match null, `formatStartTime` — the one function shared by all three response
+views — stops rendering a zero/unset `StartTime` as 1970 and returns an empty
+string instead:
+
+```go
+func formatStartTime(startTime *model.OptionalInt64) string {
+    if startTime.GetValue() == 0 {
+        return ""
+    }
+    return time.Unix(0, startTime.GetValue()).Format(time.RFC3339)
+}
+```
+
+The date filter's query is unchanged — `$gte`/`$lt` on `starttime.value` now
+means exactly what it says: events that *have* a start time in this window.
+Because the fix lives in the shared helper, `GetSportEvent` and
+`GetRacingEvent` render an unset `StartTime` as an empty string too, not just
+`SearchEvents`'s own view — a visible, deliberate change to those two RPCs'
+output, not something scoped to just this task's new code.
+
+**Measured index cost.** The `Display` `$ne: true` branch and the
+`BettingStatus` `$in` widening look similar but cost differently:
+
+| Query | Plan | Bounds |
+|---|---|---|
+| `{"bettingstatus.value": {$in:[0,null]}}` | IXSCAN | `["[null, null]", "[0, 0]"]` — two point lookups |
+| `{"display.value": {$ne: true}}` | IXSCAN | `["[MinKey, true)", "(true, MaxKey]"]` — everything but one point |
+
+Both use their index — `$ne: true` isn't a table scan — but `$in` on the zero
+enum is two tight point lookups, effectively free, while `$ne: true` scans
+nearly the whole index. `BettingStatus` only needed the cheap version because
+only one of its four values needed widening at all.
 
 ### Multiple filters combine with AND; zero filters return every event
 
@@ -189,3 +260,16 @@ the default `_id_` index.
   adds a fifth method on top. Out of scope here (and `README.md`/existing task
   docs must stay untouched), but worth a follow-up commit so it isn't
   rediscovered as a surprise.
+- **`GetSportEvent` and `GetRacingEvent` now render an unset `StartTime` as an
+  empty string, not `1970-01-01T...`.** `formatStartTime` is the one function
+  behind all three response views, so fixing the disagreement between
+  `SearchEvents` and the read RPCs (see "The general rule" above) necessarily
+  changes what those two RPCs return for an event that never set `StartTime`
+  — a visible output change to Tasks 1 and 2, landing inside this task's
+  fix-up. `docs/task-01-display.md` and `docs/task-02-racing.md` are
+  point-in-time records and are not being retroactively edited to reflect
+  this; it's recorded here since this is the change that caused it. Because
+  `EventSummary.StartTime` (and `SportEvent`/`RacingEvent`'s) is a proto3
+  `string`, an empty value is simply omitted from JSON output rather than
+  rendered as an empty key — absent, not wrong, but worth knowing so it
+  doesn't look like a missing field in Postman.

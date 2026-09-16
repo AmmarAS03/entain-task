@@ -205,3 +205,52 @@ func Test_mongoRepo_SearchEvents(t *testing.T) {
 		assert.Empty(t, got)
 	})
 }
+
+// Test_mongoRepo_SearchEvents_UnsetFields covers events that never set
+// StartTime and/or BettingStatus - a separate fixture from
+// Test_mongoRepo_SearchEvents rather than an addition to searchFixture, so
+// none of that function's nine exact-ID-list assertions need to change.
+func Test_mongoRepo_SearchEvents_UnsetFields(t *testing.T) {
+	repo := newSearchTestRepo(t)
+
+	// unset-A has no StartTime, no BettingStatus and no Display at all - what
+	// a brand-new event looks like. unset-B has an explicit BettingStatus but
+	// still no StartTime, so a BettingStatus-only search can tell the two apart.
+	seedSearchEvent(t, repo, &model.Event{ID: "unset-A"})
+	seedSearchEvent(t, repo, &model.Event{
+		ID:            "unset-B",
+		BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen},
+	})
+
+	t.Run("BettingStatus: BettingUnknown finds an event that never set a status", func(t *testing.T) {
+		status := model.BettingStatus_BettingUnknown
+		got, err := repo.SearchEvents(context.Background(), repository.EventFilter{BettingStatus: &status})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"unset-A"}, searchIDs(got))
+	})
+
+	// The probe-C trap: widening a non-zero BettingStatus to match null would
+	// wrongly return unset-A here too, since it has no status at all.
+	t.Run("BettingStatus: BettingOpen does not also match an event with no status", func(t *testing.T) {
+		status := model.BettingStatus_BettingOpen
+		got, err := repo.SearchEvents(context.Background(), repository.EventFilter{BettingStatus: &status})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"unset-B"}, searchIDs(got))
+	})
+
+	t.Run("a date window matches only events that have a StartTime", func(t *testing.T) {
+		from := int64(0)
+		got, err := repo.SearchEvents(context.Background(), repository.EventFilter{StartTimeFrom: &from})
+		require.NoError(t, err)
+		assert.Empty(t, got, "neither fixture event has a StartTime, so no window should match either")
+	})
+
+	// Both events sort to the same (null) starttime.value key, so this is the
+	// only assertion in the suite that would fail if the _id tiebreak were
+	// dropped from the sort in mongo.go.
+	t.Run("no filters, both events sort by _id when StartTime is equally unset", func(t *testing.T) {
+		got, err := repo.SearchEvents(context.Background(), repository.EventFilter{})
+		require.NoError(t, err)
+		assert.Equal(t, []string{"unset-A", "unset-B"}, searchIDs(got))
+	})
+}
