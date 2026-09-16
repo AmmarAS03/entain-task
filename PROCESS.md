@@ -36,6 +36,8 @@ building, and reviewing stayed separate instead of one pass trying to do everyth
 They're not public yet. The idea of splitting the work this way was inspired by patterns
 I'd seen from [Matt Pocock](https://github.com/mattpocock) and [Affan Mustafa](https://github.com/affaan-m) on GitHub.
 
+![Saper, Kapu, Gendis workflow](images/process/agent-workflow.jpeg)
+
 **Saper** plans. It reads the actual code rather than guessing file paths, finds the
 closest existing pattern for the task, and applies YAGNI: don't recreate something that
 already exists, don't reshape a widely used function without a real reason. It runs the
