@@ -85,3 +85,43 @@ func TestRacingEvent_ConvertFromModel_RaceStatusEmptyOnSportEvent(t *testing.T) 
 
 	assert.Empty(t, out.RaceStatus)
 }
+
+// A fully populated event should render every EventSummary field as its flat
+// consumer-facing type, not the model's Optional* wrapper.
+func TestEventSummary_ConvertFromModel_FullyPopulated(t *testing.T) {
+	event := &model.Event{
+		ID:            "evt-1",
+		Name:          &model.OptionalString{Value: "Test Event"},
+		StartTime:     &model.OptionalInt64{Value: 1758244443000000000},
+		BettingStatus: &model.OptionalBettingStatus{Value: model.BettingStatus_BettingOpen},
+		EventTypeID:   &model.OptionalString{Value: "soccer"},
+		Display:       &model.OptionalBool{Value: true},
+	}
+
+	out := &core.EventSummary{}
+	out.ConvertFromModel(event)
+
+	assert.Equal(t, "evt-1", out.ID)
+	assert.Equal(t, "Test Event", out.Name)
+	assert.Contains(t, out.StartTime, "2025-09-19")
+	assert.Equal(t, "BettingOpen", out.BettingStatus)
+	assert.Equal(t, "soccer", out.EventTypeID)
+	assert.True(t, out.Display)
+}
+
+// A sparse event (nil Display, nil StartTime, nil BettingStatus) should
+// convert to zero-value defaults rather than panicking - in particular,
+// unset Display must default to false (hidden), matching Task 1's semantics
+// for SportEvent and RacingEvent.
+func TestEventSummary_ConvertFromModel_Sparse(t *testing.T) {
+	event := &model.Event{ID: "evt-2"}
+
+	out := &core.EventSummary{}
+	out.ConvertFromModel(event)
+
+	assert.Equal(t, "evt-2", out.ID)
+	assert.Empty(t, out.Name)
+	assert.Equal(t, "BettingUnknown", out.BettingStatus, "unset BettingStatus renders its zero enum value, same as SportEvent/RacingEvent")
+	assert.Empty(t, out.EventTypeID)
+	assert.False(t, out.Display)
+}

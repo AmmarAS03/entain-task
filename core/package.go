@@ -104,6 +104,19 @@ func (to *RacingEvent) ConvertFromModel(event *model.Event) {
 	})
 }
 
+// ConvertFromModel converts a model.Event to a core.EventSummary, the shape
+// SearchEvents returns. It deliberately carries no sport or racing specific
+// fields, so one result slice can hold both kinds of event.
+func (to *EventSummary) ConvertFromModel(event *model.Event) {
+	to.ID = event.GetID()
+	to.Name = event.GetName().GetValue()
+	to.StartTime = formatStartTime(event.GetStartTime())
+	to.BettingStatus = event.GetBettingStatus().GetValue().String()
+	to.EventTypeID = event.GetEventTypeID().GetValue()
+	// Unset Display defaults to false (hidden), matching SportEvent and RacingEvent.
+	to.Display = event.GetDisplay().GetValue()
+}
+
 // runnerSelections indexes the Win and Place selections by Selection ID in a
 // single pass over the markets, so ConvertFromModel can join each runner to
 // its price and betting status without walking the markets again. Selection

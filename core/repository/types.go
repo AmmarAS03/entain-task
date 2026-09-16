@@ -13,4 +13,14 @@ type Repository interface {
 	UpdateEvent(ctx context.Context, event *model.Event) error
 	DeleteEventByID(ctx context.Context, id string) error
 	Close(ctx context.Context) error
+	SearchEvents(ctx context.Context, filter EventFilter) ([]*model.Event, error)
+}
+
+// EventFilter describes optional criteria for SearchEvents. A nil field means
+// "do not filter on this". Non-nil fields combine with AND.
+type EventFilter struct {
+	StartTimeFrom *int64 // inclusive, epoch nanoseconds
+	StartTimeTo   *int64 // exclusive, epoch nanoseconds
+	BettingStatus *model.BettingStatus
+	Display       *bool
 }

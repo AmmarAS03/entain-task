@@ -1,0 +1,34 @@
+{
+    "Event": {
+        "ID": "testEventTwo",
+        "Name": {
+            "Value": "Brisbane Broncos vs Parramatta Eels"
+        },
+        "StartTime": {
+            "Value": 1758315600000000000
+        },
+        "BettingStatus": {
+            "Value": "BettingClosed"
+        },
+        "EventTypeID": {
+            "Value": "rugby_league"
+        },
+        "Display": {
+            "Value": true
+        },
+        "SportData": {
+            "Name": {
+                "Value": "Rugby League"
+            },
+            "Region": {
+                "Value": "Australia"
+            },
+            "League": {
+                "Value": "NRL"
+            },
+            "Round": {
+                "Value": "2"
+            }
+        }
+    }
+}

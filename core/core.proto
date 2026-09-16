@@ -92,11 +92,42 @@ message RacingRunner {
     string  PlaceBettingStatus = 14;
 }
 
+message SearchEventsRequest {
+    // Epoch nanoseconds. From is inclusive, To is exclusive. Either may be
+    // supplied alone for an open-ended window.
+    model.OptionalInt64         StartTimeFrom = 1;
+    model.OptionalInt64         StartTimeTo   = 2;
+    model.OptionalBettingStatus BettingStatus = 3;
+    // Whether the Event should be displayed. Unset Display on a stored event
+    // is treated as false (hidden), matching GetSportEvent/GetRacingEvent, so
+    // filtering for false also matches events that never set Display.
+    model.OptionalBool          Display       = 4;
+}
+
+message SearchEventsResponse {
+    repeated EventSummary Events = 1;
+}
+
+// EventSummary identifies a matched event without committing to a sport or a
+// racing view. Consumers follow up with GetSportEvent or GetRacingEvent for
+// the full shape.
+message EventSummary {
+    string ID            = 1;
+    string Name          = 2;
+    string StartTime     = 3;
+    string BettingStatus = 4;
+    bool   Display       = 5;
+    string EventTypeID   = 6;
+}
+
 service Service {
     // Update updates an Event and runs the pipeline of transformations
     rpc Update(UpdateRequest) returns (UpdateResponse) {}
-    // GetSportEvent retrieves a model.Event from the database and returns a core.SportEvent - this is a more UserConsumable representation of the model that is specific to sport events 
+    // GetSportEvent retrieves a model.Event from the database and returns a core.SportEvent - this is a more UserConsumable representation of the model that is specific to sport events
     rpc GetSportEvent(GetSportEventRequest) returns (GetSportEventResponse) {}
     // GetRacingEvent retrieves a model.Event from the database and returns a core.RacingEvent - a race card style view for consumers of racing events
     rpc GetRacingEvent(GetRacingEventRequest) returns (GetRacingEventResponse) {}
+    // SearchEvents returns a summary of every Event matching the supplied criteria. Filters are
+    // individually optional and combine with AND when more than one is supplied.
+    rpc SearchEvents(SearchEventsRequest) returns (SearchEventsResponse) {}
 }

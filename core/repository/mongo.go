@@ -46,7 +46,29 @@ func NewMongoRepository(ctx context.Context, uri string, database string) (Repos
 		return nil, errors.New("failed_to_init_mongo")
 	}
 
+	if err := rslt.ensureIndexes(ctx); err != nil {
+		// Indexes are a performance optimisation, not a correctness requirement -
+		// SearchEvents returns identical results without them, so a service that
+		// can't create one is strictly worse off refusing to boot than booting slow.
+		logrus.WithError(err).Warn("could not ensure indexes")
+	}
+
 	return rslt, nil
+}
+
+// ensureIndexes creates the indexes SearchEvents filters on. Index creation is
+// idempotent, so this is safe on every startup. Three single-field indexes,
+// rather than one compound index, because the filters are independently
+// optional - a compound index only serves queries that use its prefix, while
+// three single-field indexes let Mongo pick the selective one (or intersect)
+// for any combination.
+func (c *mongoRepo) ensureIndexes(ctx context.Context) error {
+	_, err := c.events.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{Keys: bson.D{{Key: "starttime.value", Value: 1}}},
+		{Keys: bson.D{{Key: "bettingstatus.value", Value: 1}}},
+		{Keys: bson.D{{Key: "display.value", Value: 1}}},
+	})
+	return err
 }
 
 func (c *mongoRepo) HealthCheck(ctx context.Context) bool {
@@ -93,4 +115,57 @@ func (c *mongoRepo) DeleteEventByID(ctx context.Context, id string) error {
 
 func (c *mongoRepo) Close(ctx context.Context) error {
 	return c.client.Disconnect(ctx)
+}
+
+// SearchEvents returns every Event matching the supplied filter, sorted
+// ascending by StartTime with ID as a tiebreak for deterministic ordering.
+func (c *mongoRepo) SearchEvents(ctx context.Context, filter EventFilter) ([]*model.Event, error) {
+	query := bson.M{}
+
+	if filter.StartTimeFrom != nil || filter.StartTimeTo != nil {
+		window := bson.M{}
+		if filter.StartTimeFrom != nil {
+			window["$gte"] = *filter.StartTimeFrom
+		}
+		if filter.StartTimeTo != nil {
+			window["$lt"] = *filter.StartTimeTo
+		}
+		query["starttime.value"] = window
+	}
+
+	if filter.BettingStatus != nil {
+		query["bettingstatus.value"] = int32(*filter.BettingStatus)
+	}
+
+	if filter.Display != nil {
+		if *filter.Display {
+			query["display.value"] = true
+		} else {
+			// Unset Display means hidden (see Task 1), and an unset Optional is
+			// stored as a null "display" field, so "hidden" is every document
+			// that is not explicitly true. $ne matches false, null and missing
+			// alike.
+			query["display.value"] = bson.M{"$ne": true}
+		}
+	}
+
+	opts := options.Find().SetSort(bson.D{{Key: "starttime.value", Value: 1}, {Key: "_id", Value: 1}})
+	cursor, err := c.events.Find(ctx, query, opts)
+	if err != nil {
+		logrus.Errorf("could not search events %v", err)
+		return nil, err
+	}
+	defer func() {
+		if errClose := cursor.Close(ctx); errClose != nil {
+			logrus.Errorf("could not close search cursor %v", errClose)
+		}
+	}()
+
+	events := []*model.Event{}
+	if err := cursor.All(ctx, &events); err != nil {
+		logrus.Errorf("could not decode searched events %v", err)
+		return nil, err
+	}
+
+	return events, nil
 }

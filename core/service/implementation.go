@@ -115,3 +115,39 @@ func (host *Service) GetRacingEvent(ctx context.Context, req *core.GetRacingEven
 
 	return resp, nil
 }
+
+// SearchEvents returns a summary of every Event matching the supplied criteria.
+func (host *Service) SearchEvents(ctx context.Context, req *core.SearchEventsRequest) (*core.SearchEventsResponse, error) {
+	filter := repository.EventFilter{}
+	if v := req.GetStartTimeFrom(); v != nil {
+		from := v.GetValue()
+		filter.StartTimeFrom = &from
+	}
+	if v := req.GetStartTimeTo(); v != nil {
+		to := v.GetValue()
+		filter.StartTimeTo = &to
+	}
+	if v := req.GetBettingStatus(); v != nil {
+		status := v.GetValue()
+		filter.BettingStatus = &status
+	}
+	if v := req.GetDisplay(); v != nil {
+		display := v.GetValue()
+		filter.Display = &display
+	}
+
+	events, err := host.Upstreams.Repo.SearchEvents(ctx, filter)
+	if err != nil {
+		logrus.WithError(err).Error("SearchEvents: failed to search events")
+		return nil, err
+	}
+
+	resp := &core.SearchEventsResponse{Events: make([]*core.EventSummary, 0, len(events))}
+	for _, event := range events {
+		summary := &core.EventSummary{}
+		summary.ConvertFromModel(event)
+		resp.Events = append(resp.Events, summary)
+	}
+
+	return resp, nil
+}
